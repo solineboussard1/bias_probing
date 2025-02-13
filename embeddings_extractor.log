@@ -1,0 +1,10 @@
+2024-12-02 12:32:43,037 - __main__ - DEBUG - Starting extraction
+2024-12-02 12:32:43,082 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): api-inference.huggingface.co:443
+2024-12-02 12:32:43,233 - urllib3.connectionpool - DEBUG - https://api-inference.huggingface.co:443 "POST /models/sentence-transformers/all-MiniLM-L6-v2 HTTP/1.1" 200 2726
+2024-12-02 12:32:43,279 - __main__ - DEBUG - Sending embeddings results
+2024-12-02 12:32:43,280 - __main__ - ERROR - Extraction failed: name 'pca_coordinates' is not defined
+2024-12-02 12:32:43,280 - __main__ - ERROR - Traceback (most recent call last):
+  File "/Users/dineshtejavasireddy/spicex/app/python/embeddings_extractor.py", line 115, in extract_concepts_with_embeddings
+    for idx, (response, coords, cluster) in enumerate(zip(responses, pca_coordinates, cluster_labels)):
+NameError: name 'pca_coordinates' is not defined
+
