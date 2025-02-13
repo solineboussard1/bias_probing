@@ -15,8 +15,12 @@ export type BatchResults = {
 
 // Helper function to generate all demographic combinations
 function generateDemographicCombinations(demographics: SelectedParams['demographics']) {
-  const { genders, ages, ethnicities, socioeconomic } = demographics;
-  
+  // For each attribute, if no selections are provided, default to an empty string.
+  const genders = demographics.genders && demographics.genders.length > 0 ? demographics.genders : [''];
+  const ages = demographics.ages && demographics.ages.length > 0 ? demographics.ages : [''];
+  const ethnicities = demographics.ethnicities && demographics.ethnicities.length > 0 ? demographics.ethnicities : [''];
+  const socioeconomic = demographics.socioeconomic && demographics.socioeconomic.length > 0 ? demographics.socioeconomic : [''];
+
   const combinations: string[][] = [];
   
   // Generate all possible combinations
@@ -24,19 +28,23 @@ function generateDemographicCombinations(demographics: SelectedParams['demograph
     for (const age of ages) {
       for (const ethnicity of ethnicities) {
         for (const social of socioeconomic) {
-          combinations.push([gender, age, ethnicity, social]);
+          // Build a combination array by including only non-empty selections.
+          const combo = [gender, age, ethnicity, social].filter(val => val);
+          combinations.push(combo);
         }
       }
     }
   }
   
-  return combinations;
+  // Ensure at least one combination is returned.
+  return combinations.length > 0 ? combinations : [[]];
 }
 
 export async function processBatch(
   prompts: string[], 
   params: SelectedParams, 
-  batchSize: number = 3,
+  // Using params.iterations to repeat each combination
+  batchSize: number = params.iterations, 
   onProgress?: ProgressCallback
 ): Promise<BatchResults[]> {
   const results: BatchResults[] = [];
@@ -52,16 +60,58 @@ export async function processBatch(
     for (const demographics of demographicCombinations) {
       const responses: string[] = [];
       
-      // Create a prompt with the specific demographic combination
-      const prompt = promptTemplate.replace(
-        /\{([^}]+)\}/g, 
-        (_, placeholder) => {
-          if (placeholder.includes('demographic')) {
-            return demographics.join(' ');
+      // Build the prompt text including demographic info.
+      // If the template contains a {demographic} placeholder, replace it with a phrase.
+      // Otherwise, prepend the demographic phrase to the prompt.
+      let prompt = "";
+      if (promptTemplate.includes("{demographic}")) {
+        prompt = promptTemplate.replace(
+          /\{([^}]+)\}/g,
+          (_, placeholder) => {
+            if (placeholder === 'demographic') {
+              // Determine perspective from the template text.
+              let perspective = "Hypothetical";
+              if (promptTemplate.includes("I am")) {
+                perspective = "First";
+              } else if (promptTemplate.includes("My friend")) {
+                perspective = "Third";
+              }
+              const demographicStr = demographics.join(' ');
+              if (demographicStr) {
+                if (perspective === "First") {
+                  return `I am a ${demographicStr}.`;
+                } else if (perspective === "Third") {
+                  return `My friend is a ${demographicStr}.`;
+                } else {
+                  return `Someone is a ${demographicStr}.`;
+                }
+              }
+              return "";
+            }
+            return placeholder;
           }
-          return placeholder;
+        );
+      } else {
+        // If no placeholder is found, prepend the demographic phrase.
+        let perspective = "Hypothetical";
+        if (promptTemplate.includes("I am")) {
+          perspective = "First";
+        } else if (promptTemplate.includes("My friend")) {
+          perspective = "Third";
         }
-      );
+        const demographicStr = demographics.join(' ');
+        let demoPhrase = "";
+        if (demographicStr) {
+          if (perspective === "First") {
+            demoPhrase = `I am a ${demographicStr}. `;
+          } else if (perspective === "Third") {
+            demoPhrase = `My friend is a ${demographicStr}. `;
+          } else {
+            demoPhrase = `Someone is a ${demographicStr}. `;
+          }
+        }
+        prompt = demoPhrase + promptTemplate;
+      }
       
       onProgress?.({
         type: 'prompt-execution',
@@ -71,6 +121,7 @@ export async function processBatch(
         totalPrompts: prompts.length * demographicCombinations.length
       });
       
+      // Repeat each prompt combination for the specified number of iterations
       for (let i = 0; i < batchSize; i++) {
         try {
           const response = await retrieveSingleCall(prompt, params.model);
@@ -84,7 +135,7 @@ export async function processBatch(
             responses.push('Response too large or empty');
           }
         } catch (error) {
-          console.error(`Batch ${i} failed for prompt:`, prompt, error);
+          console.error(`Iteration ${i} failed for prompt:`, prompt, error);
           responses.push('Failed to get response');
         }
       }
@@ -94,7 +145,7 @@ export async function processBatch(
       // Create metadata for this specific combination
       const safeMetadata = {
         perspective: prompt.includes("I am") ? "First" : 
-                    prompt.includes("My friend") ? "Third" : "Hypothetical",
+                     prompt.includes("My friend") ? "Third" : "Hypothetical",
         demographics: demographics.map(d => d.slice(0, 100)),
         context: params.context.slice(0, 1000),
         questionType: params.questionTypes.find(qt => prompt.includes(qt)) || "Unknown"
@@ -152,4 +203,4 @@ export async function runAnalysisPipeline(
   };
 
   return result;
-} 
+}

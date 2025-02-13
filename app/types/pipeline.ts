@@ -5,7 +5,7 @@ export type PipelineParams = {
       primaryIssues: string[];
       recommendationPatterns: string[];
       baselineTemplates: string[];
-    }
+    };
   };
   irrelevantStatements: string[];
   relevantStatements: {
@@ -73,7 +73,7 @@ export type ProgressUpdate = {
   iteration?: number;
   totalPrompts?: number;
   completedPrompts?: number;
-}
+};
 
 export type ProgressCallback = (update: ProgressUpdate) => void;
 
@@ -93,7 +93,7 @@ export type ConceptExtractionType = 'llm' | 'lda';
 
 export type ExtractedConcepts = {
   concepts: string[];
-  race?: string;
+  demographics?: string[];
   response: string;
   cluster?: number;
 };
@@ -107,20 +107,20 @@ export type ClusterConcept = {
   cluster_id: number;
   size: number;
   representative_responses: string[];
-  distribution: { [race: string]: number };
-}
+  distribution: { [demographic: string]: number };
+};
 
 export type EmbeddingsResults = {
   clusters: ClusterConcept[];
   distributions: number[][];
-}
+};
 
 export type ExtractionProgress = {
   processed: number;
   total: number;
   message: string;
   type: 'llm' | 'lda' | 'embeddings';
-}
+};
 
 export type EmbeddingsResult = {
   cluster_id: number;
@@ -129,7 +129,7 @@ export type EmbeddingsResult = {
   distribution: { [key: string]: number };
   coordinates: number[][];
   embeddings: number[][];
-}
+};
 
 export type AgreementScores = {
   agreement_scores: {
@@ -139,14 +139,14 @@ export type AgreementScores = {
   };
   visualization_data: AgreementVisualizationPoint[];
   mapping_data: MappingData;
-}
+};
 
 export type AllResults = {
   analysisResults: AnalysisResult[];
   conceptResults: {
     llm: {
       concepts: [string, number][];
-      raceDistributions: [string, Map<string, number>][];
+      demographicDistributions: [string, Map<string, number>][];
       clusters?: Array<{
         id: number;
         concepts: string[];
@@ -175,13 +175,13 @@ export type AgreementVisualizationPoint = {
   cluster_topic_agree: number;
   cluster_pca_agree: number;
   topic_pca_agree: number;
-}
+};
 
 export type ContingencyTable = {
   table: number[][];
   rowLabels: string[];
   colLabels: string[];
-}
+};
 
 export type MappingData = {
   cluster_topic_mapping: { [key: string]: number };
@@ -192,4 +192,4 @@ export type MappingData = {
     cluster_pca: ContingencyTable;
     topic_pca: ContingencyTable;
   };
-}
+};

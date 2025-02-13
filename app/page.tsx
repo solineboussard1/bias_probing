@@ -338,16 +338,17 @@ export default function Home() {
   });
 
   // Add state for concept distributions
-  const [conceptData, setConceptData] = useState<{
-    concepts: Map<string, number>;
-    raceDistributions: Map<string, Map<string, number>>;
-    clusters?: ClusterData[];
-    rawResults?: AnalysisResult[];
-    extractedConcepts?: ExtractedConcepts[];
-  }>({
-    concepts: new Map(),
-    raceDistributions: new Map()
-  });
+const [conceptData, setConceptData] = useState<{
+  concepts: Map<string, number>;
+  demographicDistributions: Map<string, Map<string, number>>; 
+  clusters?: ClusterData[];
+  rawResults?: AnalysisResult[];
+  extractedConcepts?: ExtractedConcepts[];
+}>({
+  concepts: new Map(),
+  demographicDistributions: new Map() 
+});
+
 
   // Add new state for file upload
   const [isProcessingFile, setIsProcessingFile] = useState(false);
@@ -428,7 +429,7 @@ export default function Home() {
 
     setIsAnalyzing(true);
     setProgress(null);
-    setConceptData({ concepts: new Map(), raceDistributions: new Map() });
+    setConceptData({ concepts: new Map(), demographicDistributions: new Map() });
 
     try {
       const response = await fetch('/api/analyze', {
@@ -663,35 +664,37 @@ export default function Home() {
                     }));
                     break;
 
-                  case 'concepts':
-                    const extractedConcepts = data.extractedConcepts as ExtractedConcepts;
-                    // Add to all extracted concepts
-                    allExtractedConcepts.push(extractedConcepts);
-
-                    setConceptData(prev => {
-                      const newConcepts = new Map(prev.concepts);
-                      const newRaceDistributions = new Map(prev.raceDistributions);
-
-                      extractedConcepts.concepts.forEach((concept: string) => {
-                        newConcepts.set(concept, (newConcepts.get(concept) || 0) + 1);
-                        if (extractedConcepts.race) {
-                          if (!newRaceDistributions.has(extractedConcepts.race)) {
-                            newRaceDistributions.set(extractedConcepts.race, new Map());
-                          }
-                          const raceMap = newRaceDistributions.get(extractedConcepts.race)!;
-                          raceMap.set(concept, (raceMap.get(concept) || 0) + 1);
-                        }
+                    case 'concepts':
+                      const extractedConcepts = data.extractedConcepts as ExtractedConcepts;
+                      allExtractedConcepts.push(extractedConcepts);
+                    
+                      setConceptData(prev => {
+                        const newConcepts = new Map(prev.concepts);
+                        const newDemographicDistributions = new Map(prev.demographicDistributions);
+                      
+                        extractedConcepts.concepts.forEach((concept: string) => {
+                          newConcepts.set(concept, (newConcepts.get(concept) || 0) + 1);
+                      
+                          // ✅ Fix: Ensure `demographics` is always an array (even if undefined)
+                          (extractedConcepts.demographics ?? ['Unspecified']).forEach((demo) => {
+                            if (!newDemographicDistributions.has(demo)) {
+                              newDemographicDistributions.set(demo, new Map());
+                            }
+                            const demoMap = newDemographicDistributions.get(demo)!;
+                            demoMap.set(concept, (demoMap.get(concept) || 0) + 1);
+                          });
+                        });
+                    
+                        return {
+                          ...prev,
+                          concepts: newConcepts,
+                          demographicDistributions: newDemographicDistributions, // ✅ No more errors
+                          rawResults: results,
+                          extractedConcepts: allExtractedConcepts
+                        };
                       });
-
-                      return {
-                        ...prev,
-                        concepts: newConcepts,
-                        raceDistributions: newRaceDistributions,
-                        rawResults: results,
-                        extractedConcepts: allExtractedConcepts
-                      };
-                    });
-                    break;
+                      break;
+                    
 
                   case 'clusters':
                     // setConceptClusters(data.clusters);
@@ -952,12 +955,13 @@ export default function Home() {
         conceptResults: {
           llm: {
             concepts: Array.from(conceptData.concepts.entries()),
-            raceDistributions: Array.from(conceptData.raceDistributions.entries()).map(
-              ([race, conceptMap]) => [
-                race,
+            demographicDistributions: Array.from(conceptData.demographicDistributions.entries()).map(
+              ([demo, conceptMap]) => [
+                demo,
                 new Map(Object.entries(conceptMap instanceof Map ? Object.fromEntries(conceptMap) : conceptMap))
               ]
             ),
+            
             // Add extractedConcepts which is needed for ConceptExtractionCSV
             extractedConcepts: conceptData.extractedConcepts || [],
             clusters: conceptData.clusters
@@ -974,12 +978,13 @@ export default function Home() {
           ...allResults.conceptResults,
           llm: {
             ...allResults.conceptResults.llm,
-            raceDistributions: allResults.conceptResults.llm.raceDistributions.map(
-              ([race, conceptMap]) => [
-                race,
+            demographicDistributions: allResults.conceptResults.llm.demographicDistributions.map(
+              ([demo, conceptMap]) => [
+                demo,
                 Object.fromEntries(conceptMap instanceof Map ? conceptMap : conceptMap)
               ]
             ),
+            
             // Ensure extractedConcepts is included in serialization
             extractedConcepts: allResults.conceptResults.llm.extractedConcepts
           }
@@ -1020,20 +1025,22 @@ export default function Home() {
 
       // Reconstruct the Maps for concept distributions
       const conceptsMap = new Map(allResults.conceptResults.llm.concepts);
-      const raceDistributionsMap = new Map(
-        allResults.conceptResults.llm.raceDistributions.map(([race, dist]) => [
-          race,
+      const demographicDistributionsMap = new Map(
+        allResults.conceptResults.llm.demographicDistributions.map(([demo, dist]) => [
+          demo,
           new Map(Object.entries(dist instanceof Map ? Object.fromEntries(dist) : dist))
         ])
       );
+      
 
       setConceptData({
         concepts: conceptsMap,
-        raceDistributions: raceDistributionsMap,
+        demographicDistributions: demographicDistributionsMap, // ✅ Updated
         clusters: allResults.conceptResults.llm.clusters,
         rawResults: allResults.analysisResults,
         extractedConcepts: allResults.conceptResults.llm.extractedConcepts
       });
+      
 
       setLdaResults(allResults.conceptResults.lda);
       setEmbeddingsResults(allResults.conceptResults.embeddings);
@@ -1775,7 +1782,7 @@ export default function Home() {
                             <ConceptVisualizations
                               conceptData={{
                                 concepts: conceptData.concepts,
-                                raceDistributions: conceptData.raceDistributions,
+                                demographicDistributions: conceptData.demographicDistributions,
                                 clusters: conceptData.clusters,
                                 rawResults: conceptData.rawResults,
                                 extractedConcepts: conceptData.extractedConcepts
