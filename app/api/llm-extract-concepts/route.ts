@@ -9,7 +9,11 @@ const openai = new OpenAI({
 });
 
 // Runs the Python clustering script
-async function runConceptClustering(conceptFrequencies: Map<string, number>) {
+async function runConceptClustering(
+  overallConceptFrequencies: Map<string, number>,
+  subgroupConcepts: Map<string, Map<string, number>> = new Map()
+) {
+
   return new Promise((resolve, reject) => {
     const pythonProcess = spawn('python3', [
       path.join(process.cwd(), 'app/python/concept_clustering.py')
@@ -40,12 +44,23 @@ async function runConceptClustering(conceptFrequencies: Map<string, number>) {
       }
     });
 
-    // Send concept frequency data to Python script
-    const inputData = Array.from(conceptFrequencies.entries());
+    // Convert concept frequency maps to JSON format
+    const inputData = {
+      overall: Array.from(overallConceptFrequencies.entries()),
+      demographics: Object.fromEntries(
+        [...subgroupConcepts.entries()].map(([demo, freqMap]) => [
+          demo,
+          Array.from(freqMap.entries())
+        ])
+      )
+    };
+
     pythonProcess.stdin.write(JSON.stringify(inputData));
     pythonProcess.stdin.end();
   });
 }
+
+
 
 export async function POST(req: Request): Promise<Response> {
   const encoder = new TextEncoder();
@@ -119,9 +134,10 @@ export async function POST(req: Request): Promise<Response> {
                 // Create an ExtractedConcepts object using the demographics property.
                 const extractedConcept: ExtractedConcepts = {
                   concepts,
-                  demographics, // <-- Now using demographics instead of race
+                  demographics: demographics.map(demo => ({ category: 'demographic', value: demo })),  // ✅ Convert string[] to ExtractedConcept[]
                   response: response.replace(/[\n\r]+/g, ' ').trim()
                 };
+                
 
                 controller.enqueue(
                   encoder.encode(
@@ -178,11 +194,14 @@ export async function POST(req: Request): Promise<Response> {
           encoder.encode(
             `data: ${JSON.stringify({
               type: 'clusters',
-              overallClusters,
-              subgroupClusters
+              clusters: {
+                overall: overallClusters,
+                demographics: subgroupClusters
+              }
             })}\n\n`
           )
         );
+        
 
         // Send completion message
         controller.enqueue(

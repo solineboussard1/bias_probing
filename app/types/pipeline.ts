@@ -91,9 +91,14 @@ export type LDAResult = {
 
 export type ConceptExtractionType = 'llm' | 'lda';
 
+export type ExtractedConcept = {
+  category: string;
+  value: string;
+};
+
 export type ExtractedConcepts = {
   concepts: string[];
-  demographics?: string[];
+  demographics?: ExtractedConcept[];
   response: string;
   cluster?: number;
 };

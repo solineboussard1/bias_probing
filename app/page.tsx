@@ -338,16 +338,16 @@ export default function Home() {
   });
 
   // Add state for concept distributions
-const [conceptData, setConceptData] = useState<{
-  concepts: Map<string, number>;
-  demographicDistributions: Map<string, Map<string, number>>; 
-  clusters?: ClusterData[];
-  rawResults?: AnalysisResult[];
-  extractedConcepts?: ExtractedConcepts[];
-}>({
-  concepts: new Map(),
-  demographicDistributions: new Map() 
-});
+  const [conceptData, setConceptData] = useState<{
+    concepts: Map<string, number>;
+    demographicDistributions: Map<string, Map<string, Map<string, number>>>;
+    clusters?: ClusterData[];
+    rawResults?: AnalysisResult[];
+    extractedConcepts?: ExtractedConcepts[];
+  }>({
+    concepts: new Map(),
+    demographicDistributions: new Map()
+  });  
 
 
   // Add new state for file upload
@@ -595,198 +595,187 @@ const [conceptData, setConceptData] = useState<{
     }
   }, []);
 
-  // Update the extractConcepts function
   const extractConcepts = async (results: AnalysisResult[]) => {
-    let llmAbortController: AbortController | null = null;
-    let ldaAbortController: AbortController | null = null;
+  let llmAbortController: AbortController | null = null;
+  let ldaAbortController: AbortController | null = null;
 
-    try {
-      setIsExtracting({ llm: true, lda: true, embeddings: true });
+  try {
+    setIsExtracting({ llm: true, lda: true, embeddings: true });
 
-      // Track all extracted concepts for later use
-      const allExtractedConcepts: ExtractedConcepts[] = [];
+    // Track all extracted concepts for later use
+    const allExtractedConcepts: ExtractedConcepts[] = [];
 
-      // Start both extractions in parallel
-      llmAbortController = new AbortController();
-      ldaAbortController = new AbortController();
+    // Start both extractions in parallel
+    llmAbortController = new AbortController();
+    ldaAbortController = new AbortController();
 
-      // LLM Extraction
-      const llmPromise = fetch('/api/llm-extract-concepts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(results),
-        signal: llmAbortController.signal
-      });
+    // LLM Extraction
+    const llmPromise = fetch('/api/llm-extract-concepts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(results),
+      signal: llmAbortController.signal,
+    });
 
-      // LDA Extraction
-      const ldaPromise = fetch('/api/lda-extract-concepts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(results),
-        signal: ldaAbortController.signal
-      });
+    // LDA Extraction
+    const ldaPromise = fetch('/api/lda-extract-concepts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(results),
+      signal: ldaAbortController.signal,
+    });
 
-      const [llmResponse, ldaResponse] = await Promise.all([llmPromise, ldaPromise]);
+    const [llmResponse, ldaResponse] = await Promise.all([llmPromise, ldaPromise]);
 
-      // const ldaResponse = await ldaPromise;
-
-      if (!llmResponse.ok || !ldaResponse.ok) {
-        throw new Error('One or more extraction methods failed');
-      }
-
-      const decoder = new TextDecoder();
-
-      // Update LLM progress handling
-      const llmReader = llmResponse.body?.getReader();
-      if (llmReader) {
-        try {
-          while (true) {
-            const { done, value } = await llmReader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = JSON.parse(line.slice(5));
-
-                switch (data.type) {
-                  case 'extraction_progress':
-                    setExtractionProgress(prev => ({
-                      ...prev,
-                      llm: {
-                        processed: data.progress.processed,
-                        total: data.progress.total,
-                        message: data.message,
-                        type: 'llm'
-                      }
-                    }));
-                    break;
-
-                    case 'concepts':
-                      const extractedConcepts = data.extractedConcepts as ExtractedConcepts;
-                      allExtractedConcepts.push(extractedConcepts);
-                    
-                      setConceptData(prev => {
-                        const newConcepts = new Map(prev.concepts);
-                        const newDemographicDistributions = new Map(prev.demographicDistributions);
-                      
-                        extractedConcepts.concepts.forEach((concept: string) => {
-                          newConcepts.set(concept, (newConcepts.get(concept) || 0) + 1);
-                      
-                          // ✅ Fix: Ensure `demographics` is always an array (even if undefined)
-                          (extractedConcepts.demographics ?? ['Unspecified']).forEach((demo) => {
-                            if (!newDemographicDistributions.has(demo)) {
-                              newDemographicDistributions.set(demo, new Map());
-                            }
-                            const demoMap = newDemographicDistributions.get(demo)!;
-                            demoMap.set(concept, (demoMap.get(concept) || 0) + 1);
-                          });
-                        });
-                    
-                        return {
-                          ...prev,
-                          concepts: newConcepts,
-                          demographicDistributions: newDemographicDistributions, // ✅ No more errors
-                          rawResults: results,
-                          extractedConcepts: allExtractedConcepts
-                        };
-                      });
-                      break;
-                    
-
-                  case 'clusters':
-                    // setConceptClusters(data.clusters);
-                    setConceptData(prev => ({
-                      ...prev,
-                      clusters: data.clusters,
-                      rawResults: results,
-                      extractedConcepts: allExtractedConcepts
-                    }));
-                    break;
-
-                  case 'complete':
-                    setIsExtracting(prev => ({ ...prev, llm: false }));
-                    setExtractionProgress(prev => ({ ...prev, llm: undefined }));
-                    break;
-                }
-              }
-            }
-          }
-        } finally {
-          llmReader.releaseLock();
-        }
-      }
-
-      // Update LDA progress handling
-      const ldaReader = ldaResponse.body?.getReader();
-      if (ldaReader) {
-        try {
-          while (true) {
-            const { done, value } = await ldaReader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = JSON.parse(line.slice(5));
-
-                switch (data.type) {
-                  case 'extraction_progress':
-                    setExtractionProgress(prev => ({
-                      ...prev,
-                      lda: {
-                        processed: data.progress.processed,
-                        total: data.progress.total,
-                        message: data.message,
-                        type: 'lda'
-                      }
-                    }));
-                    break;
-
-                  case 'lda_concepts':
-                    setLdaResults({
-                      topics: data.topics,
-                      distributions: data.distributions
-                    });
-                    break;
-
-                  case 'complete':
-                    setIsExtracting(prev => ({ ...prev, lda: false }));
-                    setExtractionProgress(prev => ({ ...prev, lda: undefined }));
-                    break;
-
-                  case 'error':
-                    toast.error(`LDA Error: ${data.error}`);
-                    setIsExtracting(prev => ({ ...prev, lda: false }));
-                    break;
-                }
-              }
-            }
-          }
-        } finally {
-          ldaReader.releaseLock();
-        }
-      }
-
-      // Add embeddings extraction
-      await extractEmbeddings(results);
-
-    } catch (error) {
-      console.error('Concept extraction failed:', error);
-      toast.error('Concept extraction failed', {
-        description: error instanceof Error ? error.message : 'Unknown error'
-      });
-    } finally {
-      setIsExtracting({ llm: false, lda: false, embeddings: false });
-      setExtractionProgress({});
-      if (llmAbortController) llmAbortController.abort();
-      if (ldaAbortController) ldaAbortController.abort();
+    if (!llmResponse.ok || !ldaResponse.ok) {
+      throw new Error('One or more extraction methods failed');
     }
-  };
+
+    const decoder = new TextDecoder();
+
+    // Update LLM progress handling
+    const llmReader = llmResponse.body?.getReader();
+    if (llmReader) {
+      try {
+        while (true) {
+          const { done, value } = await llmReader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = JSON.parse(line.slice(5));
+              switch (data.type) {
+                case 'extraction_progress':
+                  setExtractionProgress(prev => ({
+                    ...prev,
+                    llm: {
+                      processed: data.progress.processed,
+                      total: data.progress.total,
+                      message: data.message,
+                      type: 'llm',
+                    },
+                  }));
+                  break;
+                case 'concepts': {
+                  // Here, extractedConcepts.demographics is now an array of objects
+                  const extractedConcepts = data.extractedConcepts as ExtractedConcepts;
+                  allExtractedConcepts.push(extractedConcepts);
+                  setConceptData(prev => {
+                    const newConcepts = new Map(prev.concepts);
+                    const newDemographicDistributions = new Map(prev.demographicDistributions);
+                    
+                    extractedConcepts.concepts.forEach((concept: string) => {
+                      newConcepts.set(concept, (newConcepts.get(concept) || 0) + 1);
+                      // Use the new ExtractedConcept type
+                      (extractedConcepts.demographics ?? [{ category: 'Unspecified', value: 'Unspecified' }])
+                        .forEach((demo) => {
+                          // Ensure the outer map (by demographic category) exists.
+                          if (!newDemographicDistributions.has(demo.category)) {
+                            newDemographicDistributions.set(demo.category, new Map());
+                          }
+                          const categoryMap = newDemographicDistributions.get(demo.category)!;
+                          // Ensure the inner map (by demographic value) exists.
+                          if (!categoryMap.has(demo.value)) {
+                            categoryMap.set(demo.value, new Map());
+                          }
+                          const valueMap = categoryMap.get(demo.value)!;
+                          // Update the count for the concept.
+                          valueMap.set(concept, (valueMap.get(concept) || 0) + 1);
+                        });
+                    });
+                    return {
+                      ...prev,
+                      concepts: newConcepts,
+                      demographicDistributions: newDemographicDistributions,
+                      rawResults: results,
+                      extractedConcepts: allExtractedConcepts,
+                    };
+                  });
+                  break;
+                }
+                case 'clusters':
+                  setConceptData(prev => ({
+                    ...prev,
+                    clusters: data.clusters,
+                    rawResults: results,
+                    extractedConcepts: allExtractedConcepts,
+                  }));
+                  break;
+                case 'complete':
+                  setIsExtracting(prev => ({ ...prev, llm: false }));
+                  setExtractionProgress(prev => ({ ...prev, llm: undefined }));
+                  break;
+              }
+            }
+          }
+        }
+      } finally {
+        llmReader.releaseLock();
+      }
+    }
+
+    // Update LDA progress handling
+    const ldaReader = ldaResponse.body?.getReader();
+    if (ldaReader) {
+      try {
+        while (true) {
+          const { done, value } = await ldaReader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = JSON.parse(line.slice(5));
+              switch (data.type) {
+                case 'extraction_progress':
+                  setExtractionProgress(prev => ({
+                    ...prev,
+                    lda: {
+                      processed: data.progress.processed,
+                      total: data.progress.total,
+                      message: data.message,
+                      type: 'lda',
+                    },
+                  }));
+                  break;
+                case 'lda_concepts':
+                  setLdaResults({
+                    topics: data.topics,
+                    distributions: data.distributions,
+                  });
+                  break;
+                case 'complete':
+                  setIsExtracting(prev => ({ ...prev, lda: false }));
+                  setExtractionProgress(prev => ({ ...prev, lda: undefined }));
+                  break;
+                case 'error':
+                  toast.error(`LDA Error: ${data.error}`);
+                  setIsExtracting(prev => ({ ...prev, lda: false }));
+                  break;
+              }
+            }
+          }
+        }
+      } finally {
+        ldaReader.releaseLock();
+      }
+    }
+
+    // Add embeddings extraction
+    await extractEmbeddings(results);
+  } catch (error) {
+    console.error('Concept extraction failed:', error);
+    toast.error('Concept extraction failed', {
+      description: error instanceof Error ? error.message : 'Unknown error',
+    });
+  } finally {
+    setIsExtracting({ llm: false, lda: false, embeddings: false });
+    setExtractionProgress({});
+    if (llmAbortController) llmAbortController.abort();
+    if (ldaAbortController) ldaAbortController.abort();
+  }
+};
 
   // Update the extractEmbeddings function
   const extractEmbeddings = async (results: AnalysisResult[]) => {
@@ -946,115 +935,118 @@ const [conceptData, setConceptData] = useState<{
     }
   }, [conceptData.concepts.size, ldaResults, embeddingsResults.length]);
 
-  // In the page.tsx component, add these functions:
   const handleDownloadResults = () => {
     try {
-      // Prepare the data
-      const allResults: AllResults = {
-        analysisResults,
-        conceptResults: {
-          llm: {
-            concepts: Array.from(conceptData.concepts.entries()),
-            demographicDistributions: Array.from(conceptData.demographicDistributions.entries()).map(
-              ([demo, conceptMap]) => [
-                demo,
-                new Map(Object.entries(conceptMap instanceof Map ? Object.fromEntries(conceptMap) : conceptMap))
-              ]
-            ),
-            
-            // Add extractedConcepts which is needed for ConceptExtractionCSV
-            extractedConcepts: conceptData.extractedConcepts || [],
-            clusters: conceptData.clusters
-          },
-          lda: ldaResults, // Already contains topics and distributions needed for LDAExtractionCSV
-          embeddings: embeddingsResults // Contains cluster_id, representative_responses, coordinates needed for EmbeddingsExtractionCSV
-        }
-      };
+        // Prepare the data
+        const allResults: AllResults = {
+            analysisResults,
+            conceptResults: {
+                llm: {
+                    concepts: Array.from(conceptData.concepts.entries()),
 
-      // Convert Maps to plain objects for JSON serialization
-      const serializedResults = {
-        ...allResults,
-        conceptResults: {
-          ...allResults.conceptResults,
-          llm: {
-            ...allResults.conceptResults.llm,
-            demographicDistributions: allResults.conceptResults.llm.demographicDistributions.map(
-              ([demo, conceptMap]) => [
-                demo,
-                Object.fromEntries(conceptMap instanceof Map ? conceptMap : conceptMap)
-              ]
-            ),
-            
-            // Ensure extractedConcepts is included in serialization
-            extractedConcepts: allResults.conceptResults.llm.extractedConcepts
-          }
-        }
-      };
+                    // Fixing demographicDistributions by flattening it
+                    demographicDistributions: Array.from(conceptData.demographicDistributions.entries()).map(
+                        ([demo, categoryMap]) => [
+                            demo,
+                            new Map(
+                                Array.from(categoryMap.entries()).flatMap(([demoValue, valueMap]) =>
+                                    Array.from(valueMap.entries()) // Extracts [concept, count] pairs
+                                )
+                            )
+                        ]
+                    ),
 
-      // Create and trigger download
-      const blob = new Blob([JSON.stringify(serializedResults, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `concept-analysis-results-${new Date().toISOString()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+                    extractedConcepts: conceptData.extractedConcepts || [],
+                    clusters: conceptData.clusters
+                },
+                lda: ldaResults,
+                embeddings: embeddingsResults
+            }
+        };
 
-      toast.success('Results downloaded successfully');
+        // Convert Maps to JSON-safe objects
+        const serializedResults = {
+            ...allResults,
+            conceptResults: {
+                ...allResults.conceptResults,
+                llm: {
+                    ...allResults.conceptResults.llm,
+                    demographicDistributions: allResults.conceptResults.llm.demographicDistributions.map(
+                        ([demo, conceptMap]) => [
+                            demo,
+                            Object.fromEntries(conceptMap) // Convert map to object for JSON
+                        ]
+                    )
+                }
+            }
+        };
+
+        // Create and trigger download
+        const blob = new Blob([JSON.stringify(serializedResults, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `concept-analysis-results-${new Date().toISOString()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        toast.success('Results downloaded successfully');
     } catch (error) {
-      console.error('Error downloading results:', error);
-      toast.error('Failed to download results');
+        console.error('Error downloading results:', error);
+        toast.error('Failed to download results');
     }
-  };
+};
+
+
 
   const handleUploadResults = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
+  
     setIsLoadingConceptsFile(true);
     toast.info('Processing uploaded concepts file...');
-
+  
     try {
       const text = await file.text();
       const allResults: AllResults = JSON.parse(text);
-
+  
       // Populate all the states
       setAnalysisResults(allResults.analysisResults);
-
-      // Reconstruct the Maps for concept distributions
-      const conceptsMap = new Map(allResults.conceptResults.llm.concepts);
+  
+      // Reconstruct the Maps for concept distributions as a three-level Map.
       const demographicDistributionsMap = new Map(
-        allResults.conceptResults.llm.demographicDistributions.map(([demo, dist]) => [
-          demo,
-          new Map(Object.entries(dist instanceof Map ? Object.fromEntries(dist) : dist))
-        ])
+        allResults.conceptResults.llm.demographicDistributions.map(
+          ([demo, categoryObj]) => [
+            demo,
+            new Map(
+              Object.entries(categoryObj).map(
+                ([demoValue, valueObj]) => [
+                  demoValue,
+                  new Map<string, number>(Object.entries(valueObj) as [string, number][])
+                ]
+              )
+            )
+          ]
+        )
       );
       
-
+  
+      // Reconstruct the concepts Map
+      const conceptsMap = new Map(allResults.conceptResults.llm.concepts);
+  
       setConceptData({
         concepts: conceptsMap,
-        demographicDistributions: demographicDistributionsMap, // ✅ Updated
+        demographicDistributions: demographicDistributionsMap,
         clusters: allResults.conceptResults.llm.clusters,
         rawResults: allResults.analysisResults,
-        extractedConcepts: allResults.conceptResults.llm.extractedConcepts
+        extractedConcepts: allResults.conceptResults.llm.extractedConcepts,
       });
-      
-
-      setLdaResults(allResults.conceptResults.lda);
-      setEmbeddingsResults(allResults.conceptResults.embeddings);
-
-      // // Set clusters if they exist
-      // if (allResults.conceptResults.llm.clusters) {
-      //   setConceptClusters(allResults.conceptResults.llm.clusters);
-      // }
-
-      toast.success('Results with concepts loaded successfully');
     } catch (error) {
-      console.error('Error uploading results:', error);
-      toast.error('Failed to upload results file', {
-        description: error instanceof Error ? error.message : 'Invalid file format'
+      console.error('File processing failed:', error);
+      toast.error('Failed to process results file', {
+        description: error instanceof Error ? error.message : 'Invalid file format',
       });
     } finally {
       setIsLoadingConceptsFile(false);
@@ -1063,6 +1055,7 @@ const [conceptData, setConceptData] = useState<{
       }
     }
   }, []);
+  
 
   // const [conceptClusters, setConceptClusters] = useState<ClusterData[]>([]);
 
@@ -1779,15 +1772,16 @@ const [conceptData, setConceptData] = useState<{
                             </div>
                           </div>
                           <div className="hidden sm:block"> {/* Desktop-only view */}
-                            <ConceptVisualizations
-                              conceptData={{
-                                concepts: conceptData.concepts,
-                                demographicDistributions: conceptData.demographicDistributions,
-                                clusters: conceptData.clusters,
-                                rawResults: conceptData.rawResults,
-                                extractedConcepts: conceptData.extractedConcepts
-                              }}
-                            />
+                          <ConceptVisualizations
+                            conceptData={{
+                              concepts: conceptData.concepts,
+                              demographicDistributions: conceptData.demographicDistributions,
+                              clusters: conceptData.clusters,
+                              rawResults: conceptData.rawResults,
+                              extractedConcepts: conceptData.extractedConcepts
+                            }}
+                          />
+
                           </div>
                         </div>
                       )}

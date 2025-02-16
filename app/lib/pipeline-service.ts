@@ -13,31 +13,31 @@ export type BatchResults = {
   };
 };
 
-// Helper function to generate all demographic combinations
-function generateDemographicCombinations(demographics: SelectedParams['demographics']) {
-  // For each attribute, if no selections are provided, default to an empty string.
-  const genders = demographics.genders && demographics.genders.length > 0 ? demographics.genders : [''];
-  const ages = demographics.ages && demographics.ages.length > 0 ? demographics.ages : [''];
-  const ethnicities = demographics.ethnicities && demographics.ethnicities.length > 0 ? demographics.ethnicities : [''];
-  const socioeconomic = demographics.socioeconomic && demographics.socioeconomic.length > 0 ? demographics.socioeconomic : [''];
-
-  const combinations: string[][] = [];
+/**
+ * New helper function that returns only individual demographic groups.
+ * It always returns a baseline (empty array) plus one group per demographic attribute.
+ */
+function generateDemographicGroups(demographics: SelectedParams['demographics']): string[][] {
+  const groups: string[][] = [];
   
-  // Generate all possible combinations
-  for (const gender of genders) {
-    for (const age of ages) {
-      for (const ethnicity of ethnicities) {
-        for (const social of socioeconomic) {
-          // Build a combination array by including only non-empty selections.
-          const combo = [gender, age, ethnicity, social].filter(val => val);
-          combinations.push(combo);
-        }
-      }
-    }
+  // Baseline group: no demographics
+  groups.push([]);
+  
+  // For each demographic attribute, add one group per selected value
+  if (demographics.genders && demographics.genders.length > 0) {
+    demographics.genders.forEach(gender => groups.push([gender]));
+  }
+  if (demographics.ages && demographics.ages.length > 0) {
+    demographics.ages.forEach(age => groups.push([age]));
+  }
+  if (demographics.ethnicities && demographics.ethnicities.length > 0) {
+    demographics.ethnicities.forEach(ethnicity => groups.push([ethnicity]));
+  }
+  if (demographics.socioeconomic && demographics.socioeconomic.length > 0) {
+    demographics.socioeconomic.forEach(socio => groups.push([socio]));
   }
   
-  // Ensure at least one combination is returned.
-  return combinations.length > 0 ? combinations : [[]];
+  return groups;
 }
 
 export async function processBatch(
@@ -51,18 +51,16 @@ export async function processBatch(
   let completedPrompts = 0;
   const MAX_RESPONSE_SIZE = 1024 * 1024; // 1MB limit per response
 
-  // Generate all demographic combinations
-  const demographicCombinations = generateDemographicCombinations(params.demographics);
+  // Use the new demographic groups function instead of a full cross‑product
+  const demographicGroups = generateDemographicGroups(params.demographics);
   
   // For each prompt template
   for (const promptTemplate of prompts) {
-    // For each demographic combination
-    for (const demographics of demographicCombinations) {
+    // For each demographic group
+    for (const demographics of demographicGroups) {
       const responses: string[] = [];
       
       // Build the prompt text including demographic info.
-      // If the template contains a {demographic} placeholder, replace it with a phrase.
-      // Otherwise, prepend the demographic phrase to the prompt.
       let prompt = "";
       if (promptTemplate.includes("{demographic}")) {
         prompt = promptTemplate.replace(
@@ -115,10 +113,10 @@ export async function processBatch(
       
       onProgress?.({
         type: 'prompt-execution',
-        message: `Processing prompt ${completedPrompts + 1}/${prompts.length * demographicCombinations.length}`,
+        message: `Processing prompt ${completedPrompts + 1}/${prompts.length * demographicGroups.length}`,
         prompt: prompt.slice(0, 100) + (prompt.length > 100 ? '...' : ''),
         completedPrompts,
-        totalPrompts: prompts.length * demographicCombinations.length
+        totalPrompts: prompts.length * demographicGroups.length
       });
       
       // Repeat each prompt combination for the specified number of iterations
@@ -172,12 +170,12 @@ export async function runAnalysisPipeline(
   });
   
   const promptTemplates = generatePrompts(params);
-  const demographicCombinations = generateDemographicCombinations(params.demographics);
+  const demographicGroups = generateDemographicGroups(params.demographics);
 
   onProgress?.({
     type: 'prompt-generation',
-    message: `Generated ${promptTemplates.length} prompt templates with ${demographicCombinations.length} demographic combinations each`,
-    totalPrompts: promptTemplates.length * demographicCombinations.length
+    message: `Generated ${promptTemplates.length} prompt templates with ${demographicGroups.length} demographic groups each`,
+    totalPrompts: promptTemplates.length * demographicGroups.length
   });
   
   const batchResults = await processBatch(promptTemplates, params, params.iterations, onProgress);
@@ -193,7 +191,7 @@ export async function runAnalysisPipeline(
       ...params.demographics.socioeconomic
     ],
     context: params.context,
-    details: `Analyzed ${promptTemplates.length} prompts with ${demographicCombinations.length} demographic combinations each`,
+    details: `Analyzed ${promptTemplates.length} prompts with ${demographicGroups.length} demographic groups each`,
     timestamp: new Date().toISOString(),
     prompts: batchResults.map(br => ({
       text: br.prompt,
