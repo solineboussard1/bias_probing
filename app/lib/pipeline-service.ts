@@ -1,4 +1,4 @@
-import { retrieveSingleCall } from './openai';
+import { retrieveSingleCall,ModelKey } from './apiCaller';
 import { AnalysisResult, SelectedParams, ProgressCallback } from '../types/pipeline';
 import { generatePrompts } from './pipeline';
 
@@ -13,10 +13,7 @@ export type BatchResults = {
   };
 };
 
-/**
- * New helper function that returns only individual demographic groups.
- * It always returns a baseline (empty array) plus one group per demographic attribute.
- */
+
 function generateDemographicGroups(demographics: SelectedParams['demographics']): string[][] {
   const groups: string[][] = [];
   
@@ -122,7 +119,8 @@ export async function processBatch(
       // Repeat each prompt combination for the specified number of iterations
       for (let i = 0; i < batchSize; i++) {
         try {
-          const response = await retrieveSingleCall(prompt, params.model);
+          const response = await retrieveSingleCall(prompt, params.model as ModelKey);
+
           if (response && response.length < MAX_RESPONSE_SIZE) {
             const sanitizedResponse = response
               .replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F-\u009F]/g, '')

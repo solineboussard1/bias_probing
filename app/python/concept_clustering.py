@@ -6,14 +6,33 @@ import sys
 from collections import Counter
 from itertools import chain
 
+import nltk
+from nltk.stem import WordNetLemmatizer
+from nltk import word_tokenize
+
+# Make sure you've downloaded these NLTK resources, e.g.:
+# nltk.download('punkt')
+# nltk.download('wordnet')
+
+lemmatizer = WordNetLemmatizer()
+
+def normalize_concept(concept: str) -> str:
+    """
+    Optional normalization function to reduce duplicates:
+    1) Lowercase
+    2) Tokenize
+    3) Lemmatize
+    """
+    tokens = word_tokenize(concept.lower())
+    lemmas = [lemmatizer.lemmatize(t) for t in tokens]
+    return " ".join(lemmas)
+
 def cluster_concepts(concepts_data):
     """
     Clusters concepts into meaningful groups using hierarchical clustering.
     Handles overall concepts and demographic-specific concepts separately.
-    
-    :param concepts_data: Dictionary with "overall" and "demographics" data
-    :return: Dictionary containing clustered results for both
     """
+
     def process_clustering(concept_frequencies):
         """
         Internal function to perform clustering on a given dataset.
@@ -23,7 +42,12 @@ def cluster_concepts(concepts_data):
         concept_entries = [(concept, freq) for concept, freq in concept_frequencies]
         
         # Expand concepts based on frequency
-        expanded_concepts = list(chain.from_iterable([[concept] * freq for concept, freq in concept_entries]))
+        expanded_concepts = list(
+            chain.from_iterable([[concept] * freq for concept, freq in concept_entries])
+        )
+
+        # (Optional) Normalize each concept to reduce near-duplicates
+        expanded_concepts = [normalize_concept(c) for c in expanded_concepts]
 
         # Create unique list for vectorization
         unique_concepts = list(set(expanded_concepts))
@@ -42,22 +66,25 @@ def cluster_concepts(concepts_data):
         tfidf_matrix = vectorizer.fit_transform(unique_concepts)
         feature_matrix = tfidf_matrix.toarray()
 
-        # Determine number of clusters dynamically
-        n_clusters = min(12, max(2, len(unique_concepts) // 4))
-
+        # Instead of a fixed number of clusters, use a distance threshold:
+        # Lower distance_threshold => fewer merges => more clusters
+        # Higher distance_threshold => more merges => fewer clusters
         try:
             clustering = AgglomerativeClustering(
-                n_clusters=n_clusters,
                 affinity='cosine',
-                linkage='average'
+                linkage='average',
+                distance_threshold=0.7,  
+                n_clusters=None
             )
+            clustering.fit(feature_matrix)
 
-            unique_labels = clustering.fit_predict(feature_matrix)
+            labels = clustering.labels_
+            n_clusters = labels.max() + 1
 
-            # Map unique concepts to cluster labels
-            concept_to_cluster = dict(zip(unique_concepts, unique_labels))
+            # Map each unique concept to its cluster label
+            concept_to_cluster = dict(zip(unique_concepts, labels))
 
-            # Assign cluster labels to expanded concepts
+            # Determine labels for expanded list
             expanded_labels = [concept_to_cluster[c] for c in expanded_concepts]
 
             # Organize clusters
@@ -77,7 +104,7 @@ def cluster_concepts(concepts_data):
             # Sort clusters by total frequency
             clusters.sort(key=lambda x: sum(x['frequency']), reverse=True)
 
-            # Reassign cluster IDs
+            # Reassign cluster IDs in sorted order
             for i, cluster in enumerate(clusters):
                 cluster['id'] = i
 

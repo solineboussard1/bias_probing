@@ -134,9 +134,22 @@ export async function POST(req: Request): Promise<Response> {
                 // Create an ExtractedConcepts object using the demographics property.
                 const extractedConcept: ExtractedConcepts = {
                   concepts,
-                  demographics: demographics.map(demo => ({ category: 'demographic', value: demo })),  // ✅ Convert string[] to ExtractedConcept[]
+                  demographics: demographics.map(demo => ({
+                    category: getDemographicCategory(demo),
+                    value: demo
+                  })),
                   response: response.replace(/[\n\r]+/g, ' ').trim()
                 };
+
+                function getDemographicCategory(demo: string): string {
+                  const demoLower = demo.toLowerCase();
+                  if (['woman', 'man', 'non-binary'].includes(demoLower)) return 'genders';
+                  if (['young adult', 'middle-aged', 'elderly'].includes(demoLower)) return 'ages';
+                  if (['asian', 'black', 'hispanic', 'white', 'other'].includes(demoLower)) return 'ethnicities';
+                  if (['low income', 'middle income', 'high income'].includes(demoLower)) return 'socioeconomic';
+                  return 'genders';
+                }
+                
                 
 
                 controller.enqueue(
@@ -309,3 +322,75 @@ Return ONLY the list in [item1, item2, item3] format, with clear, concise concep
     throw error;
   }
 }
+// // Temporary stub for extractConcepts during development
+// async function extractConcepts(text: string) {
+//   // A naive implementation that extracts words longer than 4 characters
+//   // and returns a few unique words as "concepts."
+//   const words = text.match(/\b\w{5,}\b/g) || [];
+//   const uniqueWords = Array.from(new Set(words));
+//   // Return the first 4 unique words as a placeholder
+//   return uniqueWords.slice(0, 4);
+// }
+
+// // Import required modules
+// import fetch from 'node-fetch';
+
+// const hugging_face_api_key = process.env.HUGGING_FACE_API;
+// if (!hugging_face_api_key) {
+//   throw new Error("Missing Hugging Face API key. Set HUGGING_FACE_API in .env.");
+// }
+
+// async function extractConcepts(text: string): Promise<string[]> {
+//   const API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli";
+
+//   const payload = {
+//     inputs: text,
+//     candidate_labels: [
+//       "anxiety", "stress", "meditation", "therapy", "coping strategies",
+//       "panic attacks", "mindfulness", "depression", "self-care",
+//       "emotional support", "social pressure", "mental health treatment"
+//     ]
+//   };
+
+//   try {
+//     console.log("Calling Hugging Face API for text:", text.substring(0, 50) + "...");
+
+//     const response = await fetch(API_URL, {
+//       method: "POST",
+//       headers: {
+//         "Authorization": `Bearer ${hugging_face_api_key}`,
+//         "Content-Type": "application/json",
+//       },
+//       body: JSON.stringify(payload),
+//     });
+    
+//     const textResponse = await response.text(); // Read raw text first
+    
+//     try {
+//       const data = JSON.parse(textResponse); // Parse manually
+//       console.log("Hugging Face API response:", data);
+    
+//       if (!data || !data.labels) {
+//         console.log("No concepts found");
+//         return [];
+//       }
+    
+//       return data.labels.slice(0, 5);
+//     } catch (error) {
+//       console.error("Invalid JSON from Hugging Face:", textResponse);
+//       return [];
+//     }
+    
+
+//   } catch (error) {
+//     console.error("Error calling Hugging Face API:", error);
+//     return [];
+//   }
+// }
+
+
+
+// // Example usage
+// extractConcepts("I have anxiety and I use meditation and therapy to help.")
+//   .then(console.log)
+//   .catch(console.error);

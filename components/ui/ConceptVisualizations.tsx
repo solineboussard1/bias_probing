@@ -7,8 +7,6 @@ import { PaletteIcon, DownloadIcon } from "lucide-react";
 import { createConceptExtractionCSV, downloadCSV } from "@/app/lib/csv-utils";
 import { AnalysisResult, ExtractedConcepts } from "@/app/types/pipeline";
 
-// Our incoming demographicDistributions is a three-level map:
-// Group (e.g., "gender") → Subgroup (e.g., "male", "female") → (Concept → count)
 type DemographicDistributions = Map<string, Map<string, Map<string, number>>>;
 
 type ClusterData = {
@@ -180,41 +178,55 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
     return result;
   }, [conceptData.demographicDistributions]);
 
-  const demographicGroups = Array.from(conceptData.demographicDistributions.keys());
+  // 1. Filter out "Unspecified" from the top-level groups
+const demographicGroups = useMemo(() => {
+  return Array.from(conceptData.demographicDistributions.keys())
+    .filter(group => group !== "Unspecified");
+}, [conceptData.demographicDistributions]);
 
-  const [selectedGroup, setSelectedGroup] = useState<string>(
-    demographicGroups.length > 0 ? demographicGroups[0] : ''
-  );
-  
-  const groupedDatasets = useMemo(() => {
-    const subgroupData = conceptData.demographicDistributions.get(selectedGroup);
-    if (!subgroupData) return [];
-  
-    return Array.from(subgroupData.entries()).map(([subgroup, conceptFreqMap]) => ({
-      label: subgroup, 
-      data: Array.from(conceptData.concepts.keys()).map(concept => conceptFreqMap.get(concept) || 0),
-      backgroundColor: getColorForAttribute(subgroup)
-    }));
-  }, [selectedGroup, conceptData.demographicDistributions, conceptData.concepts]);
-  
+// 2. Set default selected group: prefer "genders" or "ethnicities" if available.
+const defaultGroup = useMemo(() => {
+  if (demographicGroups.includes("genders")) return "genders";
+  if (demographicGroups.includes("ethnicities")) return "ethnicities";
+  if (demographicGroups.includes("ages")) return "ages";
+  if (demographicGroups.includes("socioeconomic")) return "socioeconomic";
+  return demographicGroups.length > 0 ? demographicGroups[0] : "";
+}, [demographicGroups]);
 
-  // Initialize pagination for clusters if available.
-  useEffect(() => {
-    if (clustersData.length > 0) {
-      const initialPages = clustersData.reduce((acc, cluster) => {
-        acc[cluster.id] = 0;
-        return acc;
-      }, {} as { [key: number]: number });
-      setClusterPages(initialPages);
-    }
-  }, [clustersData]);
 
-  useEffect(() => {
-    if (demographicGroups.length > 0 && !demographicGroups.includes(selectedGroup)) {
-      setSelectedGroup(demographicGroups[0]);
-    }
-  }, [demographicGroups, selectedGroup]);
-  
+const [selectedGroup, setSelectedGroup] = useState<string>(defaultGroup);
+
+useEffect(() => {
+  // In case the available groups change, update the default.
+  if (demographicGroups.length > 0 && !demographicGroups.includes(selectedGroup)) {
+    setSelectedGroup(defaultGroup);
+  }
+}, [demographicGroups, selectedGroup, defaultGroup]);
+
+// 3. When building the grouped data for the bar chart,
+//    ensure that "Unspecified" is always included as a label.
+const groupedDemographicData = useMemo(() => {
+  const subgroupData = conceptData.demographicDistributions.get(selectedGroup);
+  if (!subgroupData) return { labels: [] as string[], datasets: [] as any[] };
+
+  // Build a set of all subgroup labels found in this demographic type.
+  const labelSet = new Set<string>();
+  subgroupData.forEach((freqMap) => {
+    freqMap.forEach((_count, subgroup) => labelSet.add(subgroup));
+  });
+  // Always include "Unspecified" as one of the labels.
+  labelSet.add("Unspecified");
+
+  const labels = Array.from(labelSet);
+
+  const datasets = Array.from(subgroupData.entries()).map(([subgroup, conceptFreqMap]) => ({
+    label: subgroup,
+    data: labels.map(label => conceptFreqMap.get(label) || 0),
+    backgroundColor: getColorForAttribute(subgroup)
+  }));
+
+  return { labels, datasets };
+}, [selectedGroup, conceptData.demographicDistributions]);
 
   const getPaginatedConcepts = (cluster: ClusterData) => {
     const currentPage = clusterPages[cluster.id] || 0;
@@ -274,7 +286,9 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
       new Chart(overallCtx, {
         type: 'bar',
         data: {
-          labels: Array.from(conceptData.concepts.keys()),
+          labels: Array.from(conceptData.concepts.keys()).filter(
+            label => label.toLowerCase() !== "unspecified"
+          ),          
           datasets: [{
             label: 'Concept Frequency',
             data: Array.from(conceptData.concepts.values()),
@@ -288,14 +302,14 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
       });
     }
 
-    // Bar chart for the selected demographic group.
+    // Bar chart for the selected demographic type.
     const distributionCtx = distributionChartRef.current?.getContext('2d');
     if (distributionCtx && selectedGroup) {
       new Chart(distributionCtx, {
         type: 'bar',
         data: {
-          labels: Array.from(conceptData.concepts.keys()),
-          datasets: groupedDatasets
+          labels: groupedDemographicData.labels,
+          datasets: groupedDemographicData.datasets
         },
         options: {
           responsive: true,
@@ -354,7 +368,7 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
         });
       }
     }
-  }, [conceptData, selectedGroup, groupedDatasets, flattenedDemographicDistributions, clustersData]);
+  }, [conceptData, selectedGroup, groupedDemographicData, flattenedDemographicDistributions, clustersData]);
 
   const handleDownloadCSV = () => {
     if (!conceptData.rawResults || !conceptData.extractedConcepts) {
@@ -389,11 +403,11 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
         </CardContent>
       </Card>
 
-      {/* Dropdown to filter by demographic group */}
+      {/* Dropdown to filter by demographic type */}
       {demographicGroups.length > 0 && (
         <div className="flex items-center gap-2">
           <label htmlFor="demographic-select" className="font-medium">
-            Filter by Demographic Group:
+            Filter by Demographic Type:
           </label>
           <select
             id="demographic-select"
