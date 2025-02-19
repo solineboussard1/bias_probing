@@ -9,26 +9,57 @@ export async function POST(req: Request): Promise<Response> {
     async start(controller) {
       try {
         const results: AnalysisResult[] = await req.json();
-        
-        // Extract all responses from the results with race information
-        const responses: { text: string; race: string }[] = [];
+
+        // Helper function for mapping a demographic string to its category.
+        function getDemographicCategory(demo: string): string | null {
+          const demoLower = demo.toLowerCase();
+          if (['woman', 'man', 'non-binary'].includes(demoLower)) return 'genders';
+          if (['young adult', 'middle-aged', 'elderly'].includes(demoLower)) return 'ages';
+          if (['asian', 'black', 'hispanic', 'white', 'other'].includes(demoLower)) return 'ethnicities';
+          if (['low income', 'middle income', 'high income'].includes(demoLower)) return 'socioeconomic';
+          return null;
+        }
+
+        // Expected demographic categories.
+        const expectedCategories = ['genders', 'ethnicities', 'ages', 'socioeconomic'];
+
+        // Extract all responses from the results with demographics information.
+        const responses: { 
+          text: string; 
+          demographics: { category: string; value: string }[]; 
+        }[] = [];
+
         results.forEach(result => {
           result.prompts.forEach(prompt => {
+            // Build demographics array for this prompt.
+            let demographics: { category: string; value: string }[] = [];
+            if (prompt.metadata.demographics && prompt.metadata.demographics.length > 0) {
+              expectedCategories.forEach(category => {
+                const matchingDemo = prompt.metadata.demographics.find(
+                  demo => getDemographicCategory(demo) === category
+                );
+                demographics.push({
+                  category,
+                  value: matchingDemo || 'Baseline'
+                });
+              });
+            } else {
+              demographics = expectedCategories.map(category => ({
+                category,
+                value: 'Baseline'
+              }));
+            }
+
             prompt.responses.forEach(response => {
-              // Get race from prompt metadata
-              const race = prompt.metadata.demographics.find(d => 
-                ['Asian', 'Black', 'Hispanic', 'White'].includes(d)
-              ) || 'Unknown';
-              
               responses.push({
                 text: response,
-                race
+                demographics
               });
             });
           });
         });
 
-        // Send initial progress
+        // Send initial progress update.
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({
@@ -39,11 +70,11 @@ export async function POST(req: Request): Promise<Response> {
           )
         );
 
-        // Run Python script
+        // Run Python script.
         const pythonScript = path.join(process.cwd(), 'app', 'python', 'lda_extractor.py');
         const pythonProcess = spawn('python', [pythonScript]);
 
-        // Send the responses to the Python script
+        // Send the responses to the Python script.
         pythonProcess.stdin.write(JSON.stringify(responses));
         pythonProcess.stdin.end();
 
@@ -55,7 +86,7 @@ export async function POST(req: Request): Promise<Response> {
 
         pythonProcess.stderr.on('data', (data) => {
           console.error(`Python Error: ${data}`);
-          // Only send actual errors, not debug info
+          // Only send actual errors, not debug info.
           if (data.toString().toLowerCase().includes('error')) {
             controller.enqueue(
               encoder.encode(
@@ -72,7 +103,7 @@ export async function POST(req: Request): Promise<Response> {
           if (code === 0) {
             try {
               const ldaResults = JSON.parse(outputData) as LDAResult;
-              
+
               if (ldaResults.error) {
                 controller.enqueue(
                   encoder.encode(
@@ -83,7 +114,7 @@ export async function POST(req: Request): Promise<Response> {
                   )
                 );
               } else {
-                // Send the extracted topics and distributions
+                // Send the extracted topics and distributions.
                 controller.enqueue(
                   encoder.encode(
                     `data: ${JSON.stringify({
@@ -96,7 +127,7 @@ export async function POST(req: Request): Promise<Response> {
                 );
               }
 
-              // Send completion message
+              // Send completion message.
               controller.enqueue(
                 encoder.encode(
                   `data: ${JSON.stringify({
@@ -150,4 +181,4 @@ export async function POST(req: Request): Promise<Response> {
       'Connection': 'keep-alive',
     },
   });
-} 
+}

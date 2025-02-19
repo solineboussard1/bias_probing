@@ -8,16 +8,16 @@ export async function POST(req: Request): Promise<Response> {
     console.log('Starting embeddings extraction...');
     const results: AnalysisResult[] = await req.json();
     
-    // Extract all responses from the results
-    const responses: { response: string; race: string }[] = [];
+    // Extract all responses from the results,
+    // now including the full demographics array rather than a hardcoded race value.
+    const responses: { response: string; demographics: string[] }[] = [];
     results.forEach(result => {
       result.prompts.forEach(prompt => {
         prompt.responses.forEach(response => {
-          const race = prompt.metadata.demographics.find(d => 
-            ['Asian', 'Black', 'Hispanic', 'White'].includes(d)
-          ) || 'Unknown';
-          
-          responses.push({ response, race });
+          responses.push({ 
+            response, 
+            demographics: prompt.metadata.demographics 
+          });
         });
       });
     });
@@ -85,4 +85,4 @@ export async function POST(req: Request): Promise<Response> {
     });
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
-} 
+}

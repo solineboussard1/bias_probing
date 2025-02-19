@@ -178,7 +178,6 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
     return result;
   }, [conceptData.demographicDistributions]);
 
-  // 1. Filter out "Unspecified" from the top-level groups
 const demographicGroups = useMemo(() => {
   return Array.from(conceptData.demographicDistributions.keys())
     .filter(group => group !== "Unspecified");
@@ -204,7 +203,6 @@ useEffect(() => {
 }, [demographicGroups, selectedGroup, defaultGroup]);
 
 // 3. When building the grouped data for the bar chart,
-//    ensure that "Unspecified" is always included as a label.
 const groupedDemographicData = useMemo(() => {
   const subgroupData = conceptData.demographicDistributions.get(selectedGroup);
   if (!subgroupData) return { labels: [] as string[], datasets: [] as any[] };
@@ -214,8 +212,6 @@ const groupedDemographicData = useMemo(() => {
   subgroupData.forEach((freqMap) => {
     freqMap.forEach((_count, subgroup) => labelSet.add(subgroup));
   });
-  // Always include "Unspecified" as one of the labels.
-  labelSet.add("Unspecified");
 
   const labels = Array.from(labelSet);
 

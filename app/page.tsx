@@ -85,6 +85,8 @@ const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
     'gpt-o1-preview',
     'gpt-o1-mini',
     'claude-3-5-sonnet',
+    'mistral-7b',
+    'llama-3-8b', 
   ],
   domainPatterns: {
     healthcare: {
@@ -657,43 +659,55 @@ export default function Home() {
                     },
                   }));
                   break;
-                case 'concepts': {
-                  // Here, extractedConcepts.demographics is now an array of objects
-                  const extractedConcepts = data.extractedConcepts as ExtractedConcepts;
-                  allExtractedConcepts.push(extractedConcepts);
-                  setConceptData(prev => {
-                    const newConcepts = new Map(prev.concepts);
-                    const newDemographicDistributions = new Map(prev.demographicDistributions);
+                  case 'concepts': {
+                    // Cast to the new ExtractedConcepts type.
+                    const extractedConcepts = data.extractedConcepts as ExtractedConcepts;
+                    allExtractedConcepts.push(extractedConcepts);
                     
-                    extractedConcepts.concepts.forEach((concept: string) => {
-                      newConcepts.set(concept, (newConcepts.get(concept) || 0) + 1);
-                      // Use the new ExtractedConcept type
-                      (extractedConcepts.demographics ?? [{ category: 'Unspecified', value: 'Unspecified' }])
-                        .forEach((demo) => {
+                    setConceptData(prev => {
+                      const newConcepts = new Map(prev.concepts);
+                      const newDemographicDistributions = new Map(prev.demographicDistributions);
+                      
+                      // List the expected demographic categories.
+                      const expectedDemographics = ['genders', 'ethnicities', 'ages', 'socioeconomic'];
+                      
+                      extractedConcepts.concepts.forEach((concept: string) => {
+                        // Update the overall count for the concept.
+                        newConcepts.set(concept, (newConcepts.get(concept) || 0) + 1);
+                        
+                        // For each expected demographic category, check if the concept has an entry.
+                        expectedDemographics.forEach((demoCategory) => {
+                          // If an entry exists for this category, use its value; otherwise, default to 'Baseline'
+                          const demoValue =
+                            extractedConcepts.demographics?.find(demo => demo.category === demoCategory)?.value || 'Baseline';
+                          
                           // Ensure the outer map (by demographic category) exists.
-                          if (!newDemographicDistributions.has(demo.category)) {
-                            newDemographicDistributions.set(demo.category, new Map());
+                          if (!newDemographicDistributions.has(demoCategory)) {
+                            newDemographicDistributions.set(demoCategory, new Map());
                           }
-                          const categoryMap = newDemographicDistributions.get(demo.category)!;
+                          const categoryMap = newDemographicDistributions.get(demoCategory)!;
+                          
                           // Ensure the inner map (by demographic value) exists.
-                          if (!categoryMap.has(demo.value)) {
-                            categoryMap.set(demo.value, new Map());
+                          if (!categoryMap.has(demoValue)) {
+                            categoryMap.set(demoValue, new Map());
                           }
-                          const valueMap = categoryMap.get(demo.value)!;
-                          // Update the count for the concept.
+                          const valueMap = categoryMap.get(demoValue)!;
+                          
+                          // Update the count for the concept under this demographic value.
                           valueMap.set(concept, (valueMap.get(concept) || 0) + 1);
                         });
+                      });
+                      
+                      return {
+                        ...prev,
+                        concepts: newConcepts,
+                        demographicDistributions: newDemographicDistributions,
+                        rawResults: results,
+                        extractedConcepts: allExtractedConcepts,
+                      };
                     });
-                    return {
-                      ...prev,
-                      concepts: newConcepts,
-                      demographicDistributions: newDemographicDistributions,
-                      rawResults: results,
-                      extractedConcepts: allExtractedConcepts,
-                    };
-                  });
-                  break;
-                }
+                    break;
+                  }                  
                 case 'clusters':
                   setConceptData(prev => ({
                     ...prev,

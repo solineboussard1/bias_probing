@@ -75,7 +75,7 @@ export function createConceptExtractionCSV(
   // Map through analysis results to create base rows
   analysisResults.forEach(result => {
     result.prompts.forEach(prompt => {
-      // Extract gender from demographics metadata
+      // Extract gender from demographics metadata (from prompt metadata, which is still a string array)
       const gender = prompt.metadata.demographics.find(d => 
         ['woman', 'man', 'non-binary'].includes(d)
       ) || null;
@@ -104,7 +104,8 @@ export function createConceptExtractionCSV(
               Question_Type: "Open-Ended",
               Prompt: prompt.text,
               Gender: gender,
-              Race: matchingConcepts.race || "Unknown",
+              // Update: derive race/ethnicity from extractedConcepts.demographics instead of a non-existent race property
+              Race: matchingConcepts.demographics?.find(d => d.category === 'ethnicities')?.value || "Unknown",
               Response: response,
               GPT_Categories: concept,
               Cluster: clusterNumber
@@ -124,6 +125,7 @@ export function createConceptExtractionCSV(
 
   return csv;
 }
+
 
 export function createLDAExtractionCSV(
   analysisResults: AnalysisResult[],
