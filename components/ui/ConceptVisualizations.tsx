@@ -178,51 +178,50 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
     return result;
   }, [conceptData.demographicDistributions]);
 
-const demographicGroups = useMemo(() => {
-  return Array.from(conceptData.demographicDistributions.keys())
-    .filter(group => group !== "Unspecified");
-}, [conceptData.demographicDistributions]);
+  const demographicGroups = useMemo(() => {
+    return Array.from(conceptData.demographicDistributions.keys())
+      .filter(group => group !== "Unspecified");
+  }, [conceptData.demographicDistributions]);
 
-// 2. Set default selected group: prefer "genders" or "ethnicities" if available.
-const defaultGroup = useMemo(() => {
-  if (demographicGroups.includes("genders")) return "genders";
-  if (demographicGroups.includes("ethnicities")) return "ethnicities";
-  if (demographicGroups.includes("ages")) return "ages";
-  if (demographicGroups.includes("socioeconomic")) return "socioeconomic";
-  return demographicGroups.length > 0 ? demographicGroups[0] : "";
-}, [demographicGroups]);
+  // Set default selected group: prefer "genders" or "ethnicities" if available.
+  const defaultGroup = useMemo(() => {
+    if (demographicGroups.includes("genders")) return "genders";
+    if (demographicGroups.includes("ethnicities")) return "ethnicities";
+    if (demographicGroups.includes("ages")) return "ages";
+    if (demographicGroups.includes("socioeconomic")) return "socioeconomic";
+    return demographicGroups.length > 0 ? demographicGroups[0] : "";
+  }, [demographicGroups]);
 
+  const [selectedGroup, setSelectedGroup] = useState<string>(defaultGroup);
 
-const [selectedGroup, setSelectedGroup] = useState<string>(defaultGroup);
+  useEffect(() => {
+    // In case the available groups change, update the default.
+    if (demographicGroups.length > 0 && !demographicGroups.includes(selectedGroup)) {
+      setSelectedGroup(defaultGroup);
+    }
+  }, [demographicGroups, selectedGroup, defaultGroup]);
 
-useEffect(() => {
-  // In case the available groups change, update the default.
-  if (demographicGroups.length > 0 && !demographicGroups.includes(selectedGroup)) {
-    setSelectedGroup(defaultGroup);
-  }
-}, [demographicGroups, selectedGroup, defaultGroup]);
+  // Build grouped data for the demographic bar chart.
+  const groupedDemographicData = useMemo(() => {
+    const subgroupData = conceptData.demographicDistributions.get(selectedGroup);
+    if (!subgroupData) return { labels: [] as string[], datasets: [] as any[] };
 
-// 3. When building the grouped data for the bar chart,
-const groupedDemographicData = useMemo(() => {
-  const subgroupData = conceptData.demographicDistributions.get(selectedGroup);
-  if (!subgroupData) return { labels: [] as string[], datasets: [] as any[] };
+    // Build a set of all subgroup labels found in this demographic type.
+    const labelSet = new Set<string>();
+    subgroupData.forEach((freqMap) => {
+      freqMap.forEach((_count, subgroup) => labelSet.add(subgroup));
+    });
 
-  // Build a set of all subgroup labels found in this demographic type.
-  const labelSet = new Set<string>();
-  subgroupData.forEach((freqMap) => {
-    freqMap.forEach((_count, subgroup) => labelSet.add(subgroup));
-  });
+    const labels = Array.from(labelSet);
 
-  const labels = Array.from(labelSet);
+    const datasets = Array.from(subgroupData.entries()).map(([subgroup, conceptFreqMap]) => ({
+      label: subgroup,
+      data: labels.map(label => conceptFreqMap.get(label) || 0),
+      backgroundColor: getColorForAttribute(subgroup)
+    }));
 
-  const datasets = Array.from(subgroupData.entries()).map(([subgroup, conceptFreqMap]) => ({
-    label: subgroup,
-    data: labels.map(label => conceptFreqMap.get(label) || 0),
-    backgroundColor: getColorForAttribute(subgroup)
-  }));
-
-  return { labels, datasets };
-}, [selectedGroup, conceptData.demographicDistributions]);
+    return { labels, datasets };
+  }, [selectedGroup, conceptData.demographicDistributions]);
 
   const getPaginatedConcepts = (cluster: ClusterData) => {
     const currentPage = clusterPages[cluster.id] || 0;
@@ -264,7 +263,6 @@ const groupedDemographicData = useMemo(() => {
       clusters: clusterLabels
     };
   };
-  
 
   // Update charts when data changes.
   useEffect(() => {
@@ -276,26 +274,63 @@ const groupedDemographicData = useMemo(() => {
       }
     });
 
-    // Overall concept distribution chart.
-    const overallCtx = overallChartRef.current?.getContext('2d');
-    if (overallCtx) {
-      new Chart(overallCtx, {
-        type: 'bar',
-        data: {
-          labels: Array.from(conceptData.concepts.keys()).filter(
-            label => label.toLowerCase() !== "unspecified"
-          ),          
-          datasets: [{
-            label: 'Concept Frequency',
-            data: Array.from(conceptData.concepts.values()),
-            backgroundColor: 'rgba(75, 192, 192, 0.6)'
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { title: { display: true, text: 'Overall Concept Distribution' } }
-        }
+    // If clusters exist, aggregate their frequencies for the overall chart.
+    if (clustersData.length > 0) {
+      const aggregatedClusters = clustersData.map(cluster => {
+        const totalFrequency = cluster.frequency.reduce((a, b) => a + b, 0);
+        return {
+          label: `Cluster ${cluster.id}`,
+          totalFrequency
+        };
       });
+      const overallCtx = overallChartRef.current?.getContext('2d');
+      if (overallCtx) {
+        new Chart(overallCtx, {
+          type: 'bar',
+          data: {
+            labels: aggregatedClusters.map(c => c.label),
+            datasets: [{
+              label: 'Aggregated Concept Frequency',
+              data: aggregatedClusters.map(c => c.totalFrequency),
+              backgroundColor: 'rgba(75, 192, 192, 0.6)'
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { title: { display: true, text: 'Overall Concept Distribution (By Cluster)' } },
+            scales: {
+              x: { beginAtZero: true },
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      }
+    } else {
+      // Fallback: use raw concept data if no clusters are available.
+      const overallCtx = overallChartRef.current?.getContext('2d');
+      if (overallCtx) {
+        new Chart(overallCtx, {
+          type: 'bar',
+          data: {
+            labels: Array.from(conceptData.concepts.keys()).filter(
+              label => label.toLowerCase() !== "unspecified"
+            ),
+            datasets: [{
+              label: 'Concept Frequency',
+              data: Array.from(conceptData.concepts.values()),
+              backgroundColor: 'rgba(75, 192, 192, 0.6)'
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { title: { display: true, text: 'Overall Concept Distribution' } },
+            scales: {
+              x: { beginAtZero: true },
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      }
     }
 
     // Bar chart for the selected demographic type.

@@ -8,7 +8,9 @@ export type ConceptExtractionRow = {
   Question_Type: string;
   Prompt: string;
   Gender: string | null;
+  Age: string;
   Race: string;
+  Socioeconomic: string;
   Response: string;
   GPT_Categories: string;
   Cluster: string;
@@ -18,7 +20,9 @@ export type LDAExtractionRow = {
   Prompt: string;
   Response: string;
   Gender: string | null;
+  Age: string;
   Race: string;
+  Socioeconomic: string;
   Dominant_Topic: number;
   Topic_Probability: number;
   Topic_Keywords: string;
@@ -35,6 +39,10 @@ export type EmbeddingsExtractionRow = {
   cluster: number;
   pca_cluster_number: string;
   raw_embeddings: number[];
+  Gender: string | null;
+  Age: string;
+  Race: string;
+  Socioeconomic: string;
 }
 
 type ClusterData = {
@@ -50,7 +58,9 @@ type MergedRow = {
   Question_Type: string;
   Prompt: string;
   Gender: string | null;
+  Age: string;
   Race: string;
+  Socioeconomic: string;
   Response: string;
   GPT_Categories: string;
   Concept_Cluster: string;
@@ -64,38 +74,41 @@ type MergedRow = {
   Raw_Embeddings: number[] | string;
 }
 
+function extractDemographics(demographics: string[]): {
+  gender: string | null;
+  age: string;
+  race: string;
+  socioeconomic: string;
+} {
+  const gender = demographics.find(d => ['woman', 'man', 'non-binary'].includes(d)) || null;
+  const age = demographics.find(d => ['Young Adult', 'Middle-aged', 'Elderly'].includes(d)) || "Unknown";
+  const race = demographics.find(d => ['Asian', 'Black', 'Hispanic', 'White', 'Other'].includes(d)) || "Unknown";
+  const socioeconomic = demographics.find(d => ['Low income', 'Middle income', 'High income'].includes(d)) || "Unknown";
+  return { gender, age, race, socioeconomic };
+}
+
 export function createConceptExtractionCSV(
   analysisResults: AnalysisResult[],
   extractedConcepts: ExtractedConcepts[], 
   clusters: ClusterData[]
 ): string {
-  // Create rows array to hold all data
   const rows: ConceptExtractionRow[] = [];
 
-  // Map through analysis results to create base rows
   analysisResults.forEach(result => {
     result.prompts.forEach(prompt => {
-      // Extract gender from demographics metadata (from prompt metadata, which is still a string array)
-      const gender = prompt.metadata.demographics.find(d => 
-        ['woman', 'man', 'non-binary'].includes(d)
-      ) || null;
-
+      const { gender, age, race, socioeconomic } = extractDemographics(prompt.metadata.demographics);
       prompt.responses.forEach(response => {
-        // Find matching extracted concepts for this response
         const matchingConcepts = extractedConcepts.find(
           ec => ec.response === response.replace(/[\n\r]+/g, ' ').trim()
         );
 
         if (matchingConcepts) {
-          // Parse concepts array from string if needed
           const concepts = Array.isArray(matchingConcepts.concepts) 
             ? matchingConcepts.concepts 
             : JSON.parse(matchingConcepts.concepts as unknown as string);
 
-          // Create a row for each concept
           concepts.forEach((concept: string) => {
-            // Find which cluster this concept belongs to
-            const clusterNumber = clusters.find(c => c.concepts.includes(concept))?.id.toString() || "";
+            const clusterNumber = clusters?.find(c => c.concepts.includes(concept))?.id.toString() || "";
 
             rows.push({
               Category: "Anxiety Management",
@@ -104,8 +117,9 @@ export function createConceptExtractionCSV(
               Question_Type: "Open-Ended",
               Prompt: prompt.text,
               Gender: gender,
-              // Update: derive race/ethnicity from extractedConcepts.demographics instead of a non-existent race property
-              Race: matchingConcepts.demographics?.find(d => d.category === 'ethnicities')?.value || "Unknown",
+              Age: age,
+              Race: matchingConcepts.demographics?.find(d => d.category === 'ethnicities')?.value || race,
+              Socioeconomic: socioeconomic,
               Response: response,
               GPT_Categories: concept,
               Cluster: clusterNumber
@@ -116,16 +130,12 @@ export function createConceptExtractionCSV(
     });
   });
 
-  // Use Papa Parse to convert to CSV
-  const csv = Papa.unparse(rows, {
+  return Papa.unparse(rows, {
     quotes: true,
     delimiter: ",",
     header: true
   });
-
-  return csv;
 }
-
 
 export function createLDAExtractionCSV(
   analysisResults: AnalysisResult[],
@@ -139,25 +149,14 @@ export function createLDAExtractionCSV(
 
   analysisResults.forEach(result => {
     result.prompts.forEach(prompt => {
-      const gender = prompt.metadata.demographics.find(d => 
-        ['woman', 'man', 'non-binary'].includes(d)
-      ) || null;
-      
-      const race = prompt.metadata.demographics.find(d => 
-        ['Asian', 'Black', 'Hispanic', 'White'].includes(d)
-      ) || 'Unknown';
-
+      const { gender, age, race, socioeconomic } = extractDemographics(prompt.metadata.demographics);
       prompt.responses.forEach(response => {
-        // Get topic distribution for this response
         const topicDistribution = ldaResults.distributions[responseIndex];
         if (!topicDistribution) return;
 
-        // Find dominant topic and its probability
         const dominantTopicIndex = topicDistribution.indexOf(Math.max(...topicDistribution));
         const dominantTopic = ldaResults.topics[dominantTopicIndex];
         const topicProbability = topicDistribution[dominantTopicIndex];
-        
-        // Create topic description with all probabilities
         const topKeywords = dominantTopic.words.slice(0, 5).join(', ');
         const topicDescription = ldaResults.topics.map((topic, idx) => 
           `Topic ${topic.topic_id} (${topicDistribution[idx].toFixed(3)})`
@@ -167,11 +166,19 @@ export function createLDAExtractionCSV(
           Prompt: prompt.text,
           Response: response,
           Gender: gender,
+          Age: age,
           Race: race,
+          Socioeconomic: socioeconomic,
           Dominant_Topic: dominantTopic.topic_id,
           Topic_Probability: topicProbability,
           Topic_Keywords: topKeywords,
-          Topic_Description: topicDescription
+          Topic_Description: topicDescription,
+          Topic_Distribution: JSON.stringify(
+            ldaResults.topics.map((topic, idx) => ({
+              topic_id: topic.topic_id,
+              probability: topicDistribution[idx]
+            }))
+          )
         });
 
         responseIndex++;
@@ -179,14 +186,11 @@ export function createLDAExtractionCSV(
     });
   });
 
-  // Use Papa Parse to convert to CSV
-  const csv = Papa.unparse(rows, {
+  return Papa.unparse(rows, {
     quotes: true,
     delimiter: ",",
     header: true
   });
-
-  return csv;
 }
 
 export function createEmbeddingsExtractionCSV(
@@ -202,6 +206,7 @@ export function createEmbeddingsExtractionCSV(
 
   analysisResults.forEach(result => {
     result.prompts.forEach(prompt => {
+      const { gender, age, race, socioeconomic } = extractDemographics(prompt.metadata.demographics);
       prompt.responses.forEach(response => {
         const cluster = embeddingsResults.find(c => 
           c.representative_responses.some(rep => 
@@ -228,7 +233,11 @@ export function createEmbeddingsExtractionCSV(
               pca_two: coordinates[1],
               cluster: Math.round(cluster.cluster_id),
               pca_cluster_number: `Cluster ${cluster.cluster_id + 1}`,
-              raw_embeddings: embeddings
+              raw_embeddings: embeddings,
+              Gender: gender,
+              Age: age,
+              Race: race,
+              Socioeconomic: socioeconomic
             });
           }
         }
@@ -241,16 +250,6 @@ export function createEmbeddingsExtractionCSV(
     delimiter: ",",
     header: true
   });
-}
-
-export function downloadCSV(csv: string, filename: string) {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
 }
 
 export function createMergedAnalysisCSV(
@@ -270,36 +269,24 @@ export function createMergedAnalysisCSV(
   }[],
   clusters: ClusterData[]
 ): string {
-  // Create rows array to hold all data
   const mergedRows: MergedRow[] = [];
   let currentResponseIdx = 0;
 
-  // Process each response once and create all rows
   analysisResults.forEach(result => {
     result.prompts.forEach(prompt => {
-      const gender = prompt.metadata.demographics.find(d => 
-        ['woman', 'man', 'non-binary'].includes(d)
-      ) || null;
-      
-      const race = prompt.metadata.demographics.find(d => 
-        ['Asian', 'Black', 'Hispanic', 'White'].includes(d)
-      ) || 'Unknown';
-
+      const { gender, age, race, socioeconomic } = extractDemographics(prompt.metadata.demographics);
       prompt.responses.forEach(response => {
         const cleanResponse = response.replace(/[\n\r]+/g, ' ').trim();
 
-        // 1. LLM Concepts - now exploded
         const matchingConcepts = extractedConcepts.find(
           ec => ec.response === cleanResponse
         );
 
         if (matchingConcepts) {
-          // Get concepts array
           const concepts = Array.isArray(matchingConcepts.concepts) 
             ? matchingConcepts.concepts 
             : JSON.parse(matchingConcepts.concepts as unknown as string);
 
-          // 2. LDA Topics
           const topicDistribution = ldaResults.distributions[currentResponseIdx];
           const dominantTopicIndex = topicDistribution 
             ? topicDistribution.indexOf(Math.max(...topicDistribution))
@@ -308,7 +295,6 @@ export function createMergedAnalysisCSV(
             ? ldaResults.topics[dominantTopicIndex]
             : null;
 
-          // 3. Embeddings
           const embeddingCluster = embeddingsResults.find(c => 
             c.representative_responses.some(rep => 
               rep.replace(/[\n\r\s]+/g, ' ').trim().toLowerCase() === 
@@ -321,26 +307,22 @@ export function createMergedAnalysisCSV(
             cleanResponse.toLowerCase()
           );
 
-          // Create a row for each concept
           concepts.forEach((concept: string) => {
-            // Find which cluster this concept belongs to
-            const clusterNumber = clusters.find(c => c.concepts.includes(concept))?.id.toString() || "";
+            const clusterNumber = clusters?.find(c => c.concepts.includes(concept))?.id.toString() || "";
 
-            // Create merged row with all information
             mergedRows.push({
-              // LLM Concept fields (exploded)
               Category: "Anxiety Management",
               Relevance: "Neutral",
               Perspective: prompt.metadata.perspective || "First",
               Question_Type: "Open-Ended",
               Prompt: prompt.text,
               Gender: gender,
+              Age: age,
               Race: race,
+              Socioeconomic: socioeconomic,
               Response: cleanResponse,
               GPT_Categories: concept,
               Concept_Cluster: clusterNumber,
-
-              // LDA Topic fields
               Dominant_Topic: dominantTopic?.topic_id ?? "",
               Topic_Probability: dominantTopic ? topicDistribution[dominantTopicIndex] : "",
               Topic_Keywords: dominantTopic ? dominantTopic.words.slice(0, 5).join(', ') : "",
@@ -350,8 +332,6 @@ export function createMergedAnalysisCSV(
                   probability: topicDistribution[idx]
                 }))
               ) : "",
-
-              // Embeddings fields
               PCA_One: embeddingCluster && responseEmbeddingIdx !== undefined && responseEmbeddingIdx !== -1
                 ? embeddingCluster.coordinates[responseEmbeddingIdx][0]
                 : "",
@@ -370,12 +350,19 @@ export function createMergedAnalysisCSV(
     });
   });
 
-  // Use Papa Parse to convert to CSV
-  const csv = Papa.unparse(mergedRows, {
+  return Papa.unparse(mergedRows, {
     quotes: true,
     delimiter: ",",
     header: true
   });
+}
 
-  return csv;
-} 
+export function downloadCSV(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}

@@ -12,7 +12,6 @@ interface ModelSettings {
   apiKey: string;
 }
 
-// Define a configuration mapping for each model
 const modelConfig: Record<string, ModelSettings> = {
   'gpt-4o': {
     provider: 'openai',
@@ -34,7 +33,7 @@ const modelConfig: Record<string, ModelSettings> = {
   },
   'gpt-o1-mini': {
     provider: 'openai',
-    modelName: 'gpt-o1-mini', // Adjust if needed
+    modelName: 'gpt-o1-mini',
     endpoint: 'https://api.openai.com/v1/chat/completions',
     apiKey: process.env.OPENAI_API_KEY || "",
   },
@@ -58,7 +57,6 @@ const modelConfig: Record<string, ModelSettings> = {
   },  
 };
 
-// Restrict allowed model keys:
 export type ModelKey = keyof typeof modelConfig;
 
 export async function retrieveSingleCall(prompt: string, selectedModel: ModelKey): Promise<string> {
@@ -66,7 +64,6 @@ export async function retrieveSingleCall(prompt: string, selectedModel: ModelKey
   if (!config) throw new Error(`Model ${selectedModel} is not configured.`);
 
   if (config.provider === 'openai') {
-    // Call OpenAI's API using the OpenAI SDK
     const response = await openai.chat.completions.create({
       model: config.modelName,
       messages: [
@@ -82,7 +79,7 @@ export async function retrieveSingleCall(prompt: string, selectedModel: ModelKey
     return response.choices[0].message.content;
 
   } else if (config.provider === 'anthropic') {
-    // Call Anthropic's API (ensure your endpoint and payload match their requirements)
+
     const response = await fetch(config.endpoint, {
       method: 'POST',
       headers: {
@@ -103,7 +100,7 @@ export async function retrieveSingleCall(prompt: string, selectedModel: ModelKey
     return data.completion || "No response from Anthropic.";
 
   } else if (config.provider === 'huggingface') {
-    // Call Hugging Face's Inference API
+
     const response = await fetch(config.endpoint, {
       method: 'POST',
       headers: {
@@ -117,7 +114,7 @@ export async function retrieveSingleCall(prompt: string, selectedModel: ModelKey
       throw new Error(`Hugging Face API error: ${errorData.error || response.statusText}`);
     }
     const data = await response.json();
-    // Hugging Face's response is typically an array of outputs
+
     return data[0]?.generated_text || "No response from Hugging Face.";
 
   } else {

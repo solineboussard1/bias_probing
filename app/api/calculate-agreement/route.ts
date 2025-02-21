@@ -65,7 +65,6 @@ export async function POST(req: Request): Promise<Response> {
       pythonProcess.on('close', async (code) => {
         console.log('Python process exited with code:', code);
         
-        // Clean up the CSV file
         try {
           await fs.unlink(csvPath);
           console.log('CSV file cleaned up successfully');
@@ -107,11 +106,9 @@ export async function POST(req: Request): Promise<Response> {
 
   } catch (error) {
     console.error('Error in calculate-agreement route:', error);
-    // Clean up file if it exists
     try {
       await fs.unlink(csvPath);
     } catch {
-      // Ignore cleanup errors
     }
     return NextResponse.json(
       { 

@@ -271,136 +271,79 @@ for (const result of results) {
 }
 
 // Helper function to extract concepts from a given text using the OpenAI API.
-// async function extractConcepts(text: string) {
-//   const sanitizedText = text
-//     .replace(/[\n\r]+/g, ' ')
-//     .replace(/"/g, '\\"')
-//     .trim();
-
-//   const prompt = `Extract key concepts and themes from this anxiety-related response.
-// Return ONLY a single line containing a list in this format: [concept1, concept2, concept3]
-
-// Here are examples of good responses:
-// Input: "I feel anxious about the test tomorrow, my heart is racing and I can't focus. I've been trying deep breathing but it's not helping much."
-// Output: [test anxiety, physical symptoms, deep breathing, concentration issues]
-
-// Input: "As an Asian person dealing with anxiety, I find meditation and family support helpful, though there's sometimes stigma in my community."
-// Output: [meditation practice, family support, cultural stigma, community pressure]
-
-// Input: "I've been seeing a therapist and practicing mindfulness. The combination of professional help and daily exercises has been working well."
-// Output: [professional therapy, mindfulness practice, combined treatment, daily routines]
-
-// Focus on identifying:
-// - Coping strategies
-// - Emotional states
-// - Support mechanisms
-// - Cultural elements
-// - Treatment approaches
-
-// Response text: "${sanitizedText}"
-
-// Return ONLY the list in [item1, item2, item3] format, with clear, concise concepts in plain English.`;
-
-//   try {
-//     console.log("Calling OpenAI API for text:", sanitizedText.substring(0, 50) + "...");
-//     const completion = await openai.chat.completions.create({
-//       model: "gpt-4o-mini",
-//       messages: [
-//         { 
-//           role: "system", 
-//           content: "You are a concept extraction system. Return only a single line containing a bracketed list of concepts. Format: [concept1, concept2, concept3]. Use clear, concise phrases. No explanations or additional text."
-//         },
-//         { role: "user", content: prompt }
-//       ],
-//       temperature: 0.3,
-//     });
-
-//     console.log("Raw completion:", completion.choices[0].message.content);
-
-//     const content = completion.choices[0].message.content || '';
-//     const match = content.match(/\[(.*?)\]/);
-    
-//     if (match) {
-//       const concepts = match[1]
-//         .split(',')
-//         .map(concept => concept.trim())
-//         .filter(concept => concept.length > 0 && concept !== '...');
-
-//       console.log("Processed concepts:", concepts);
-//       return concepts;
-//     }
-
-//     console.log("No concepts found in response");
-//     return [];
-//   } catch (error) {
-//     console.error('OpenAI API error:', error);
-//     throw error;
-//   }
-// }
-
-
-// // Temporary stub for extractConcepts during development
 async function extractConcepts(text: string) {
-  // A naive implementation that extracts words longer than 4 characters
-  // and returns a few unique words as "concepts."
-  const words = text.match(/\b\w{5,}\b/g) || [];
-  const uniqueWords = Array.from(new Set(words));
-  // Return the first 4 unique words as a placeholder
-  return uniqueWords.slice(0, 4);
+  const sanitizedText = text
+    .replace(/[\n\r]+/g, ' ')
+    .replace(/"/g, '\\"')
+    .trim();
+
+  const prompt = `Extract key concepts and themes from this anxiety-related response.
+Return ONLY a single line containing a list in this format: [concept1, concept2, concept3]
+
+Here are examples of good responses:
+Input: "I feel anxious about the test tomorrow, my heart is racing and I can't focus. I've been trying deep breathing but it's not helping much."
+Output: [test anxiety, physical symptoms, deep breathing, concentration issues]
+
+Input: "As an Asian person dealing with anxiety, I find meditation and family support helpful, though there's sometimes stigma in my community."
+Output: [meditation practice, family support, cultural stigma, community pressure]
+
+Input: "I've been seeing a therapist and practicing mindfulness. The combination of professional help and daily exercises has been working well."
+Output: [professional therapy, mindfulness practice, combined treatment, daily routines]
+
+Focus on identifying:
+- Coping strategies
+- Emotional states
+- Support mechanisms
+- Cultural elements
+- Treatment approaches
+
+Response text: "${sanitizedText}"
+
+Return ONLY the list in [item1, item2, item3] format, with clear, concise concepts in plain English.`;
+
+  try {
+    console.log("Calling OpenAI API for text:", sanitizedText.substring(0, 50) + "...");
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { 
+          role: "system", 
+          content: "You are a concept extraction system. Return only a single line containing a bracketed list of concepts. Format: [concept1, concept2, concept3]. Use clear, concise phrases. No explanations or additional text."
+        },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.3,
+    });
+
+    console.log("Raw completion:", completion.choices[0].message.content);
+
+    const content = completion.choices[0].message.content || '';
+    const match = content.match(/\[(.*?)\]/);
+    
+    if (match) {
+      const concepts = match[1]
+        .split(',')
+        .map(concept => concept.trim())
+        .filter(concept => concept.length > 0 && concept !== '...');
+
+      console.log("Processed concepts:", concepts);
+      return concepts;
+    }
+
+    console.log("No concepts found in response");
+    return [];
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    throw error;
+  }
 }
 
-// Import required modules
-// import fetch from 'node-fetch';
-
-// const hugging_face_api_key = process.env.HUGGING_FACE_API;
-// if (!hugging_face_api_key) {
-//   throw new Error("Missing Hugging Face API key. Set HUGGING_FACE_API in .env.");
-// }
-
-// async function extractConcepts(text: string): Promise<string[]> {
-//   const API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli";
-
-//   const payload = {
-//     inputs: text,
-//     candidate_labels: [
-//       "anxiety", "stress", "meditation", "therapy", "coping strategies",
-//       "panic attacks", "mindfulness", "depression", "self-care",
-//       "emotional support", "social pressure", "mental health treatment"
-//     ]
-//   };
-
-//   try {
-//     console.log("Calling Hugging Face API for text:", text.substring(0, 50) + "...");
-
-//     const response = await fetch(API_URL, {
-//       method: "POST",
-//       headers: {
-//         "Authorization": `Bearer ${hugging_face_api_key}`,
-//         "Content-Type": "application/json",
-//       },
-//       body: JSON.stringify(payload),
-//     });
-    
-//     const textResponse = await response.text(); // Read raw text first
-    
-//     try {
-//       const data = JSON.parse(textResponse); // Parse manually
-//       console.log("Hugging Face API response:", data);
-    
-//       if (!data || !data.labels) {
-//         console.log("No concepts found");
-//         return [];
-//       }
-    
-//       return data.labels.slice(0, 5);
-//     } catch (error) {
-//       console.error("Invalid JSON from Hugging Face:", textResponse);
-//       return [];
-//     }
-    
-
-//   } catch (error) {
-//     console.error("Error calling Hugging Face API:", error);
-//     return [];
-//   }
+// // // Temporary stub for extractConcepts during development
+// async function extractConcepts(text: string) {
+//   // A naive implementation that extracts words longer than 4 characters
+//   // and returns a few unique words as "concepts."
+//   const words = text.match(/\b\w{5,}\b/g) || [];
+//   const uniqueWords = Array.from(new Set(words));
+//   // Return the first 4 unique words as a placeholder
+//   return uniqueWords.slice(0, 4);
 // }

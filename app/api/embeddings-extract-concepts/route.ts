@@ -9,7 +9,6 @@ export async function POST(req: Request): Promise<Response> {
     const results: AnalysisResult[] = await req.json();
     
     // Extract all responses from the results,
-    // now including the full demographics array rather than a hardcoded race value.
     const responses: { response: string; demographics: string[] }[] = [];
     results.forEach(result => {
       result.prompts.forEach(prompt => {
