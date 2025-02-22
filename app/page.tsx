@@ -870,7 +870,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* LDA Progress */}
+              {/* LDA Progress
               {(isExtracting.lda || extractionProgress.lda) && (
                 <div className="space-y-2 p-4 bg-muted rounded-lg border">
                   <div className="space-y-1">
@@ -896,7 +896,7 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-              )}
+              )} */}
             </div>
           )}
       </>
@@ -963,8 +963,8 @@ export default function Home() {
                         ([demo, categoryMap]) => [
                             demo,
                             new Map(
-                                Array.from(categoryMap.entries()).flatMap(([demoValue, valueMap]) =>
-                                    Array.from(valueMap.entries()) // Extracts [concept, count] pairs
+                                Array.from(categoryMap.entries()).flatMap(([, valueMap]) =>
+                                    Array.from(valueMap.entries()) 
                                 )
                             )
                         ]
@@ -1787,14 +1787,18 @@ export default function Home() {
                           </div>
                           <div className="hidden sm:block"> {/* Desktop-only view */}
                           <ConceptVisualizations
-                            conceptData={{
-                              concepts: conceptData.concepts,
-                              demographicDistributions: conceptData.demographicDistributions,
-                              clusters: conceptData.clusters,
-                              rawResults: conceptData.rawResults,
-                              extractedConcepts: conceptData.extractedConcepts
-                            }}
-                          />
+                              conceptData={{
+                                concepts: conceptData.concepts,
+                                demographicDistributions: conceptData.demographicDistributions,
+                                clusters: conceptData.clusters?.map((cluster) => ({
+                                  ...cluster,
+                                  label: cluster.id.toString(),
+                                  total_frequency: cluster.frequency.reduce((a, b) => a + b, 0),
+                                })),
+                                rawResults: conceptData.rawResults,
+                                extractedConcepts: conceptData.extractedConcepts
+                              }}
+                            />
 
                           </div>
                         </div>

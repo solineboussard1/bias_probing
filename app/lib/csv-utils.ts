@@ -306,10 +306,30 @@ export function createMergedAnalysisCSV(
             rep.replace(/[\n\r\s]+/g, ' ').trim().toLowerCase() === 
             cleanResponse.toLowerCase()
           );
+          concepts.forEach((concept: string) => {
+            if (!clusters || !Array.isArray(clusters)) {
+                console.error("Clusters array is undefined or not an array:", clusters);
+                return;
+            }
+        
+            if (typeof concept !== "string") {
+                console.error("Concept is not a string:", concept);
+                return;
+            }
+            const cluster = clusters.find(c => Array.isArray(c.concepts) && c.concepts.includes(concept));
+        
+            if (!cluster) {
+                console.warn("No matching cluster found for concept:", concept);
+            }
+        
+            const clusterNumber = cluster?.id !== undefined ? cluster.id.toString() : "";
+        
+            console.log(`Concept: ${concept}, Cluster Number: ${clusterNumber}`);
+        });
+    
 
           concepts.forEach((concept: string) => {
-            const clusterNumber = clusters?.find(c => c.concepts.includes(concept))?.id.toString() || "";
-
+            const clusterNumber = clusters?.find(c => c.concepts.includes(concept))?.id?.toString() || "";
             mergedRows.push({
               Category: "Anxiety Management",
               Relevance: "Neutral",

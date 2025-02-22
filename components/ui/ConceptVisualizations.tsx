@@ -7,13 +7,15 @@ import { PaletteIcon, DownloadIcon } from "lucide-react";
 import { createConceptExtractionCSV, downloadCSV } from "@/app/lib/csv-utils";
 import { AnalysisResult, ExtractedConcepts } from "@/app/types/pipeline";
 
-type DemographicDistributions = Map<string, Map<string, Map<string, number>>>;
-
-type ClusterData = {
-  id: number;
-  concepts: string[];
-  frequency: number[];
+export type ClusterData = {
+  id: number
+    concepts: string[]
+    frequency: number[]
+    label: string
+    total_frequency: number
 };
+
+type DemographicDistributions = Map<string, Map<string, Map<string, number>>>;
 
 type ConceptVisualizationsProps = {
   conceptData: {
@@ -133,11 +135,9 @@ function ClusterHeatmap({ data, categories, clusters }: ClusterHeatmapProps) {
 const transpose = (matrix: number[][]): number[][] =>
   matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
 
-// Return a consistent color for a given subgroup.
 const colorMap: { [key: string]: string } = {
   male: 'rgba(54, 162, 235, 0.6)',
   female: 'rgba(255, 99, 132, 0.6)',
-  // Add other known subgroups as needed...
 };
 const getColorForAttribute = (attribute: string) => {
   if (colorMap[attribute]) return colorMap[attribute];
@@ -148,6 +148,18 @@ const getColorForAttribute = (attribute: string) => {
   return `rgba(${r}, ${g}, ${b}, 0.6)`;
 };
 
+// Define types for the grouped demographic data.
+type DemographicDataset = {
+  label: string;
+  data: number[];
+  backgroundColor: string;
+};
+
+type GroupedDemographicData = {
+  labels: string[];
+  datasets: DemographicDataset[];
+};
+
 // -------------------
 // Main Component
 // -------------------
@@ -156,12 +168,10 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
   const distributionChartRef = useRef<HTMLCanvasElement>(null);
   const clusterChartRef = useRef<HTMLCanvasElement>(null);
 
-  // Use a default empty array if clusters is undefined.
-  const clustersData: ClusterData[] = Array.isArray(conceptData.clusters)
-    ? conceptData.clusters
-    : [];
-
-  const [clusterPages, setClusterPages] = useState<{ [key: number]: number }>({});
+  // Use the aggregated clusters returned by the backend.
+  const clustersData = useMemo<ClusterData[]>(() => {
+    return Array.isArray(conceptData.clusters) ? conceptData.clusters : [];
+  }, [conceptData.clusters]);
 
   // --- Flatten the demographicDistributions for the heatmap ---
   const flattenedDemographicDistributions = useMemo(() => {
@@ -195,18 +205,16 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
   const [selectedGroup, setSelectedGroup] = useState<string>(defaultGroup);
 
   useEffect(() => {
-    // In case the available groups change, update the default.
     if (demographicGroups.length > 0 && !demographicGroups.includes(selectedGroup)) {
       setSelectedGroup(defaultGroup);
     }
   }, [demographicGroups, selectedGroup, defaultGroup]);
 
   // Build grouped data for the demographic bar chart.
-  const groupedDemographicData = useMemo(() => {
+  const groupedDemographicData = useMemo<GroupedDemographicData>(() => {
     const subgroupData = conceptData.demographicDistributions.get(selectedGroup);
-    if (!subgroupData) return { labels: [] as string[], datasets: [] as any[] };
+    if (!subgroupData) return { labels: [], datasets: [] };
 
-    // Build a set of all subgroup labels found in this demographic type.
     const labelSet = new Set<string>();
     subgroupData.forEach((freqMap) => {
       freqMap.forEach((_count, subgroup) => labelSet.add(subgroup));
@@ -214,7 +222,7 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
 
     const labels = Array.from(labelSet);
 
-    const datasets = Array.from(subgroupData.entries()).map(([subgroup, conceptFreqMap]) => ({
+    const datasets: DemographicDataset[] = Array.from(subgroupData.entries()).map(([subgroup, conceptFreqMap]) => ({
       label: subgroup,
       data: labels.map(label => conceptFreqMap.get(label) || 0),
       backgroundColor: getColorForAttribute(subgroup)
@@ -223,17 +231,7 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
     return { labels, datasets };
   }, [selectedGroup, conceptData.demographicDistributions]);
 
-  const getPaginatedConcepts = (cluster: ClusterData) => {
-    const currentPage = clusterPages[cluster.id] || 0;
-    const start = currentPage * ITEMS_PER_PAGE;
-    return cluster.concepts.slice(start, start + ITEMS_PER_PAGE);
-  };
-
-  const getTotalPages = (cluster: ClusterData) => {
-    return Math.ceil(cluster.concepts.length / ITEMS_PER_PAGE);
-  };
-
-  // Build heatmap data if clusters are available.
+  // Build heatmap data using the aggregated cluster data.
   const getHeatmapData = () => {
     if (clustersData.length === 0) {
       console.warn("No clusters available for heatmap.");
@@ -247,13 +245,13 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
     }
   
     const attributes = Array.from(demographicData.keys());
-    const clusterLabels = clustersData.map(c => `Cluster ${c.id}`);
+    // Use the aggregated cluster label for each cluster.
+    const clusterLabels = clustersData.map(cluster => cluster.label);
   
+    // In this simplified heatmap, for each cluster we display the frequency if the cluster label exists among the attributes.
     const matrix = clustersData.map(cluster =>
       attributes.map(attribute =>
-        cluster.concepts.reduce((acc, concept) => 
-          concept === attribute ? acc + (demographicData.get(concept) || 0) : acc
-        , 0)
+        attribute === cluster.label ? demographicData.get(attribute) || 0 : 0
       )
     );
   
@@ -266,7 +264,7 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
 
   // Update charts when data changes.
   useEffect(() => {
-    // Destroy any existing charts.
+    // Clean up any existing charts.
     [overallChartRef, distributionChartRef, clusterChartRef].forEach(ref => {
       if (ref.current) {
         const existingChart = Chart.getChart(ref.current);
@@ -274,24 +272,19 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
       }
     });
 
-    // If clusters exist, aggregate their frequencies for the overall chart.
+    // --- Overall Clusters Chart ---
     if (clustersData.length > 0) {
-      const aggregatedClusters = clustersData.map(cluster => {
-        const totalFrequency = cluster.frequency.reduce((a, b) => a + b, 0);
-        return {
-          label: `Cluster ${cluster.id}`,
-          totalFrequency
-        };
-      });
+      const clusterLabels = clustersData.map(cluster => cluster.label);
+      const clusterFrequencies = clustersData.map(cluster => cluster.total_frequency);
       const overallCtx = overallChartRef.current?.getContext('2d');
       if (overallCtx) {
         new Chart(overallCtx, {
           type: 'bar',
           data: {
-            labels: aggregatedClusters.map(c => c.label),
+            labels: clusterLabels,
             datasets: [{
-              label: 'Aggregated Concept Frequency',
-              data: aggregatedClusters.map(c => c.totalFrequency),
+              label: 'Cluster Frequency',
+              data: clusterFrequencies,
               backgroundColor: 'rgba(75, 192, 192, 0.6)'
             }]
           },
@@ -306,7 +299,6 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
         });
       }
     } else {
-      // Fallback: use raw concept data if no clusters are available.
       const overallCtx = overallChartRef.current?.getContext('2d');
       if (overallCtx) {
         new Chart(overallCtx, {
@@ -333,7 +325,7 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
       }
     }
 
-    // Bar chart for the selected demographic type.
+    // --- Demographic Distribution Chart ---
     const distributionCtx = distributionChartRef.current?.getContext('2d');
     if (distributionCtx && selectedGroup) {
       new Chart(distributionCtx, {
@@ -355,22 +347,21 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
       });
     }
 
-    // Cluster visualization chart (only if clusters exist).
+    // --- Cluster Visualization Chart ---
     if (clustersData.length > 0 && clusterChartRef.current) {
       const ctx = clusterChartRef.current.getContext('2d');
       if (ctx) {
-        const avgFrequencies = clustersData.map(cluster =>
-          cluster.frequency.reduce((a, b) => a + b, 0) / cluster.frequency.length
-        );
+        const clusterLabels = clustersData.map(cluster => cluster.label);
+        const clusterFrequencies = clustersData.map(cluster => cluster.total_frequency);
         new Chart(ctx, {
           type: 'bar',
           data: {
-            labels: clustersData.map(c => `Cluster ${c.id}`),
+            labels: clusterLabels,
             datasets: [{
-              label: 'Average Concept Frequency',
-              data: avgFrequencies,
-              backgroundColor: 'rgba(75, 192, 192, 0.6)',
-              borderColor: 'rgba(75, 192, 192, 1)',
+              label: 'Total Frequency',
+              data: clusterFrequencies,
+              backgroundColor: 'rgba(153, 102, 255, 0.6)',
+              borderColor: 'rgba(153, 102, 255, 1)',
               borderWidth: 1
             }]
           },
@@ -381,20 +372,13 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
               tooltip: {
                 callbacks: {
                   label: function (context) {
-                    const cluster = clustersData[context.dataIndex];
-                    const avgFreq = avgFrequencies[context.dataIndex].toFixed(2);
-                    return [
-                      `Average Frequency: ${avgFreq}`,
-                      'Concepts:',
-                      ...cluster.concepts.map((c, i) =>
-                        `  ${c} (${cluster.frequency[i]} occurrences)`
-                      )
-                    ];
+                    const totalFreq = clusterFrequencies[context.dataIndex];
+                    return `Total Frequency: ${totalFreq}`;
                   }
                 }
               }
             },
-            scales: { y: { beginAtZero: true, title: { display: true, text: 'Average Frequency' } } }
+            scales: { y: { beginAtZero: true, title: { display: true, text: 'Total Frequency' } } }
           }
         });
       }
@@ -434,7 +418,6 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
         </CardContent>
       </Card>
 
-      {/* Dropdown to filter by demographic type */}
       {demographicGroups.length > 0 && (
         <div className="flex items-center gap-2">
           <label htmlFor="demographic-select" className="font-medium">
@@ -462,7 +445,6 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
         </CardContent>
       </Card>
 
-      {/* Render cluster-related components only if clustersData exists */}
       {clustersData.length > 0 && (
         <>
           <Card>
@@ -478,65 +460,18 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
 
           <Card>
             <CardContent className="pt-4">
-              <h3 className="text-lg font-semibold mb-4">Detailed Cluster Contents</h3>
+              <h3 className="text-lg font-semibold mb-4">Cluster Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {clustersData.map((cluster) => {
-                  const currentPage = clusterPages[cluster.id] || 0;
-                  const totalPages = getTotalPages(cluster);
-                  const paginatedConcepts = getPaginatedConcepts(cluster);
-                  const conceptIndices = paginatedConcepts.map(concept =>
-                    cluster.concepts.indexOf(concept)
-                  );
-                  return (
-                    <div key={cluster.id} className="p-4 border rounded-lg bg-muted/50">
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-medium">Cluster {cluster.id}</h4>
-                        <span className="text-sm text-muted-foreground">
-                          {cluster.concepts.length} concepts
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2 min-h-[50px] items-start content-start">
-                        {paginatedConcepts.map((concept, idx) => (
-                          <Badge key={concept} variant="secondary" className="flex items-center gap-1 min-h-[20px]">
-                            <span>{concept}</span>
-                            <span className="text-xs opacity-70">
-                              ({cluster.frequency[conceptIndices[idx]]})
-                            </span>
-                          </Badge>
-                        ))}
-                      </div>
-                      {totalPages > 1 && (
-                        <div className="flex justify-between items-center mt-4 pt-2 border-t">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setClusterPages(prev => ({
-                              ...prev,
-                              [cluster.id]: Math.max(0, currentPage - 1)
-                            }))}
-                            disabled={currentPage === 0}
-                          >
-                            Previous
-                          </Button>
-                          <span className="text-sm text-muted-foreground">
-                            {currentPage + 1} of {totalPages}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setClusterPages(prev => ({
-                              ...prev,
-                              [cluster.id]: Math.min(totalPages - 1, currentPage + 1)
-                            }))}
-                            disabled={currentPage === totalPages - 1}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      )}
+                {clustersData.map(cluster => (
+                  <div key={cluster.id} className="p-4 border rounded-lg bg-muted/50">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-medium">{cluster.label}</h4>
+                      <span className="text-sm text-muted-foreground">
+                        Frequency: {cluster.total_frequency}
+                      </span>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>

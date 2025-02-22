@@ -91,7 +91,7 @@ export function EmbeddingsVisualizations({ results, analysisResults }: Embedding
                         }}
                         colors={{ scheme: 'category10' }}
                         tooltip={({ node }) => (
-                            <div className="bg-white p-2 shadow-lg rounded-lg border text-sm text-gray-900">
+                            <div className="bg-white p-2 shadow-lg rounded-lg border text-sm">
                                 <strong>{node.serieId}</strong>
                                 <br />
                                 {node.data.response.slice(0, 100)}...

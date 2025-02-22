@@ -87,7 +87,6 @@ export async function processBatch(
           }
         );
       } else {
-        // If no placeholder is found, prepend the demographic phrase.
         let perspective = "Hypothetical";
         if (promptTemplate.includes("I am")) {
           perspective = "First";
