@@ -5,6 +5,7 @@ import json
 import sys
 import os
 import traceback
+import math  # Added to check for Python float NaN
 
 class NumpyJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -12,6 +13,8 @@ class NumpyJSONEncoder(json.JSONEncoder):
             if np.isnan(obj):
                 return None
             return float(obj)
+        if isinstance(obj, float) and math.isnan(obj):
+            return None
         return super().default(obj)
 
 def calculate_agreement(cluster_labels, topic_labels, pca_cluster_labels):
@@ -39,9 +42,10 @@ def calculate_agreement(cluster_labels, topic_labels, pca_cluster_labels):
     total_matches_cp = confusion_matrix_cluster_pca[row_ind_cp, col_ind_cp].sum()
     total_matches_tp = confusion_matrix_topic_pca[row_ind_tp, col_ind_tp].sum()
 
-    agreement_score_ct = total_matches_ct / len(cluster_labels)
-    agreement_score_cp = total_matches_cp / len(cluster_labels)
-    agreement_score_tp = total_matches_tp / len(cluster_labels)
+    agreement_score_ct = total_matches_ct / len(cluster_labels) if len(cluster_labels) > 0 else 0
+    agreement_score_cp = total_matches_cp / len(cluster_labels) if len(cluster_labels) > 0 else 0
+    agreement_score_tp = total_matches_tp / len(cluster_labels) if len(cluster_labels) > 0 else 0
+
 
     return (
         (agreement_score_ct, agreement_score_cp, agreement_score_tp),
@@ -77,7 +81,7 @@ def calculate_agreement_scores():
         print(f"Successfully read CSV with {len(grouped_df)} rows", file=sys.stderr)
         print(f"CSV columns: {grouped_df.columns.tolist()}", file=sys.stderr)
 
-        # Group by Response to handle exploded concepts
+        # Drop rows with missing critical labels.
         grouped_df = grouped_df.dropna(subset=['Concept_Cluster', 'Dominant_Topic', 'Embeddings_Cluster'])
 
         # Convert labels to numeric codes
@@ -152,6 +156,7 @@ def calculate_agreement_scores():
 if __name__ == "__main__":
     try:
         results = calculate_agreement_scores()
+        # Only the final JSON output is printed to stdout
         print(json.dumps(results, cls=NumpyJSONEncoder))
     except Exception as e:
         error_details = {
@@ -160,4 +165,4 @@ if __name__ == "__main__":
             "type": str(type(e).__name__)
         }
         print(json.dumps(error_details), file=sys.stderr)
-        sys.exit(1) 
+        sys.exit(1)

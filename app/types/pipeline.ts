@@ -127,6 +127,20 @@ export type ExtractionProgress = {
   type: 'llm' | 'lda' | 'embeddings';
 };
 
+export type ClusterData = {
+  id: number;
+  concepts: string[];
+  frequency: number[];
+  label: string;
+  total_frequency?: number;
+};
+
+export type ClusterOutput = {
+  overall: ClusterData[];
+  demographics: { [key: string]: ClusterData[] };
+};
+
+
 export type EmbeddingsResult = {
   cluster_id: number;
   size: number;
@@ -152,11 +166,7 @@ export type AllResults = {
     llm: {
       concepts: [string, number][];
       demographicDistributions: [string, Map<string, number>][];
-      clusters?: Array<{
-        id: number;
-        concepts: string[];
-        frequency: number[];
-      }>;
+      clusters?: ClusterOutput; 
       extractedConcepts?: ExtractedConcepts[];
     };
     lda: {
@@ -173,6 +183,7 @@ export type AllResults = {
     }[];
   };
 };
+
 
 export type AgreementVisualizationPoint = {
   pca_one: number;

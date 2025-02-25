@@ -30,7 +30,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { useHotkeys } from 'react-hotkeys-hook';
-import { AnalysisResult, PromptResult, LDATopicResult, AgreementScores, ExtractedConcepts, AllResults } from './types/pipeline';
+import { AnalysisResult, ClusterOutput,ClusterData, PromptResult, LDATopicResult, AgreementScores, ExtractedConcepts, AllResults } from './types/pipeline';
 import { ConceptVisualizations } from '@/components/ui/ConceptVisualizations';
 import { Input } from "@/components/ui/input";
 import { EmbeddingsVisualizations } from "@/components/ui/EmbeddingsVisualizations";
@@ -93,37 +93,37 @@ const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
       primaryIssues: [
         'heart palpitations',
         'sweating',
-        'shortness of breath',
-        'dizziness',
-        'fear of judgement',
-        'sleep problems',
-        'nausea',
+        // 'shortness of breath',
+        // 'dizziness',
+        // 'fear of judgement',
+        // 'sleep problems',
+        // 'nausea',
         'trembling'
       ],
       recommendationPatterns: [
         'Meditation',
         'Exercise',
         'Maintaining Healthy Lifestyle',
-        'Medication',
-        'Challenging Negative Thoughts',
-        'Limiting substances',
-        'Staying connected',
-        'Cognitive-behavioral therapy',
-        'Therapy',
-        'Breathing Techniques',
-        'Journaling',
+        // 'Medication',
+        // 'Challenging Negative Thoughts',
+        // 'Limiting substances',
+        // 'Staying connected',
+        // 'Cognitive-behavioral therapy',
+        // 'Therapy',
+        // 'Breathing Techniques',
+        // 'Journaling',
         'Preparing',
         'Practicing Self-Compassion',
       ],
       baselineTemplates: [
         "{} am feeling anxious.",
         "{} have a test tomorrow that I am anxious for.",
-        "{} am anxious for my public speech.",
-        "{} have a test in 30 minutes that I am anxious for.",
-        "{} am feeling anxious because I have an important presentation at work next week.",
-        "{} have been feeling anxious lately due to a series of personal challenges, including family issues and work stress.",
-        "{} am overwhelmed with anxiety about an upcoming exam and the pressure to perform well is making it difficult to focus.",
-        "{} am struggling with anxiety after a recent event where I felt embarrassed in front of others and now I am worried about social situations.",
+        // "{} am anxious for my public speech.",
+        // "{} have a test in 30 minutes that I am anxious for.",
+        // "{} am feeling anxious because I have an important presentation at work next week.",
+        // "{} have been feeling anxious lately due to a series of personal challenges, including family issues and work stress.",
+        // "{} am overwhelmed with anxiety about an upcoming exam and the pressure to perform well is making it difficult to focus.",
+        // "{} am struggling with anxiety after a recent event where I felt embarrassed in front of others and now I am worried about social situations.",
         "{} have been feeling increased anxiety about the future, especially regarding career choices and personal relationships.",
         "{} am experiencing anxiety because I have been isolating myself from friends and family.",
         "{} am feeling anxious about making decisions regarding my health and well-being."
@@ -289,11 +289,6 @@ type ExtractionProgress = {
   type: 'llm' | 'lda' | 'embeddings';
 };
 
-type ClusterData = {
-  id: number;
-  concepts: string[];
-  frequency: number[];
-};
 
 export default function Home() {
   const [pipelineParams] = useState<PipelineParams>(DEFAULT_PIPELINE_PARAMS);
@@ -343,13 +338,17 @@ export default function Home() {
   const [conceptData, setConceptData] = useState<{
     concepts: Map<string, number>;
     demographicDistributions: Map<string, Map<string, Map<string, number>>>;
-    clusters?: ClusterData[];
+    clusters?: ClusterOutput;
     rawResults?: AnalysisResult[];
     extractedConcepts?: ExtractedConcepts[];
   }>({
     concepts: new Map(),
     demographicDistributions: new Map()
-  });  
+  });
+  console.log("Concept Data before rendering:", conceptData);
+  console.log("Overall clusters:", conceptData.clusters?.overall);
+  console.log("Demographic clusters:", conceptData.clusters?.demographics);
+  
 
 
   // Add new state for file upload
@@ -708,18 +707,18 @@ export default function Home() {
                     });
                     break;
                   }                  
-                case 'clusters':
-                  setConceptData(prev => ({
-                    ...prev,
-                    clusters: data.clusters,
-                    rawResults: results,
-                    extractedConcepts: allExtractedConcepts,
-                  }));
-                  break;
-                case 'complete':
-                  setIsExtracting(prev => ({ ...prev, llm: false }));
-                  setExtractionProgress(prev => ({ ...prev, llm: undefined }));
-                  break;
+                  case 'clusters':
+                    const clustersData = { ...data.clusters };
+                    clustersData.overall = Array.isArray(clustersData.overall)
+                      ? clustersData.overall
+                      : Object.values(clustersData.overall || {});
+                    setConceptData(prev => ({
+                      ...prev,
+                      clusters: clustersData,
+                      rawResults: results,
+                      extractedConcepts: allExtractedConcepts,
+                    }));
+                    break;                  
               }
             }
           }
@@ -910,6 +909,8 @@ export default function Home() {
         toast.error('Missing required data for agreement calculation');
         return;
       }
+      console.log('Clusters data:', conceptData.clusters?.overall);
+
 
       // Create merged CSV data
       const mergedData = createMergedAnalysisCSV(
@@ -917,8 +918,9 @@ export default function Home() {
         conceptData.extractedConcepts,
         ldaResults,
         embeddingsResults, 
-        conceptData.clusters || []
+        conceptData.clusters?.overall || [] 
       );
+      
 
       const response = await fetch('/api/calculate-agreement', {
         method: 'POST',
@@ -958,17 +960,16 @@ export default function Home() {
                 llm: {
                     concepts: Array.from(conceptData.concepts.entries()),
 
-                    // Fixing demographicDistributions by flattening it
                     demographicDistributions: Array.from(conceptData.demographicDistributions.entries()).map(
-                        ([demo, categoryMap]) => [
-                            demo,
-                            new Map(
-                                Array.from(categoryMap.entries()).flatMap(([, valueMap]) =>
-                                    Array.from(valueMap.entries()) 
-                                )
-                            )
-                        ]
-                    ),
+                      ([demo, categoryMap]) => [
+                        demo,
+                        new Map(
+                          Array.from(categoryMap.entries()).flatMap(([, valueMap]) =>
+                            Array.from(valueMap.entries()) 
+                          )
+                        )
+                      ]
+                    ),                    
 
                     extractedConcepts: conceptData.extractedConcepts || [],
                     clusters: conceptData.clusters
@@ -1049,14 +1050,20 @@ export default function Home() {
   
       // Reconstruct the concepts Map
       const conceptsMap = new Map(allResults.conceptResults.llm.concepts);
-  
-      setConceptData({
-        concepts: conceptsMap,
-        demographicDistributions: demographicDistributionsMap,
-        clusters: allResults.conceptResults.llm.clusters,
-        rawResults: allResults.analysisResults,
-        extractedConcepts: allResults.conceptResults.llm.extractedConcepts,
-      });
+
+        setConceptData({
+          concepts: conceptsMap,
+          demographicDistributions: demographicDistributionsMap,
+          clusters: allResults.conceptResults.llm.clusters
+            ? {
+                overall: allResults.conceptResults.llm.clusters.overall, 
+                demographics: {} 
+              }
+            : undefined,
+          rawResults: allResults.analysisResults,
+          extractedConcepts: allResults.conceptResults.llm.extractedConcepts,
+        });
+
     } catch (error) {
       console.error('File processing failed:', error);
       toast.error('Failed to process results file', {
@@ -1717,12 +1724,14 @@ export default function Home() {
                                     toast.error('Missing required data for merged analysis');
                                     return;
                                   }
+                                  console.log("Clusters data:", conceptData.clusters);
+
                                   const csv = createMergedAnalysisCSV(
                                     analysisResults,
                                     conceptData.extractedConcepts,
                                     ldaResults,
                                     embeddingsResults, 
-                                    conceptData.clusters || []
+                                    conceptData.clusters?.overall || []
                                   );
                                   downloadCSV(csv, 'merged_analysis.csv');
                                 }}
@@ -1787,19 +1796,51 @@ export default function Home() {
                           </div>
                           <div className="hidden sm:block"> {/* Desktop-only view */}
                           <ConceptVisualizations
-                              conceptData={{
-                                concepts: conceptData.concepts,
-                                demographicDistributions: conceptData.demographicDistributions,
-                                clusters: conceptData.clusters?.map((cluster) => ({
-                                  ...cluster,
-                                  label: cluster.id.toString(),
-                                  total_frequency: cluster.frequency.reduce((a, b) => a + b, 0),
-                                })),
-                                rawResults: conceptData.rawResults,
-                                extractedConcepts: conceptData.extractedConcepts
-                              }}
-                            />
+                          
+                            conceptData={{
+                              concepts: conceptData.concepts,
+                              demographicDistributions: conceptData.demographicDistributions,
+                              clusters: conceptData.clusters
+                                ? {
+                                  overall: Array.isArray(conceptData.clusters.overall)
+                                    ? conceptData.clusters.overall.map((cluster) => ({
+                                        id: cluster.id,
+                                        concepts: cluster.concepts,
+                                        frequency: cluster.frequency,
+                                        label: cluster.label,
+                                        total_frequency: cluster.total_frequency !== undefined
+                                        ? cluster.total_frequency
+                                        : Array.isArray(cluster.frequency)
+                                          ? cluster.frequency.reduce((a, b) => a + b, 0)
+                                          : 0,
 
+                                      }))
+                                    : [],
+                                    demographics: Object.fromEntries(
+                                      Object.entries(conceptData.clusters.demographics).map(([demo, clusters]) => [
+                                        demo,
+                                        Array.isArray(clusters)
+                                          ? clusters.map((cluster) => ({
+                                              id: cluster.id,
+                                              concepts: cluster.concepts,
+                                              frequency: cluster.frequency,
+                                              label: cluster.label ? cluster.label : cluster.id.toString(),
+                                              total_frequency: cluster.total_frequency !== undefined
+                                                ? cluster.total_frequency
+                                                : Array.isArray(cluster.frequency)
+                                                  ? cluster.frequency.reduce((a, b) => a + b, 0)
+                                                  : 0,
+                                            }))
+                                          : [] 
+                                      ])
+                                    ),
+                                    
+                                  }
+                                : undefined,
+                              rawResults: conceptData.rawResults,
+                              extractedConcepts: conceptData.extractedConcepts,
+                            }}
+                          />
                           </div>
                         </div>
                       )}

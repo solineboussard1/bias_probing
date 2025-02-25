@@ -14,6 +14,11 @@ export type ClusterData = {
     label: string
     total_frequency: number
 };
+export type ClusterOutput = {
+  overall: ClusterData[];
+  demographics: { [key: string]: ClusterData[] };
+};
+
 
 type DemographicDistributions = Map<string, Map<string, Map<string, number>>>;
 
@@ -21,7 +26,7 @@ type ConceptVisualizationsProps = {
   conceptData: {
     concepts: Map<string, number>;
     demographicDistributions: DemographicDistributions;
-    clusters?: ClusterData[];
+    clusters?: ClusterOutput;
     rawResults?: AnalysisResult[];
     extractedConcepts?: ExtractedConcepts[];
   };
@@ -346,7 +351,6 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
         }
       });
     }
-
     // --- Cluster Visualization Chart ---
     if (clustersData.length > 0 && clusterChartRef.current) {
       const ctx = clusterChartRef.current.getContext('2d');

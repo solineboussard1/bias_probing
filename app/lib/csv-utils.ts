@@ -108,7 +108,7 @@ export function createConceptExtractionCSV(
             : JSON.parse(matchingConcepts.concepts as unknown as string);
 
           concepts.forEach((concept: string) => {
-            const clusterNumber = clusters?.find(c => c.concepts.includes(concept))?.id.toString() || "";
+            const clusterNumber = clusters?.find(c => c.concepts?.includes(concept))?.id?.toString() || "";
 
             rows.push({
               Category: "Anxiety Management",
@@ -267,7 +267,7 @@ export function createMergedAnalysisCSV(
     size: number;
     distribution: { [key: string]: number };
   }[],
-  clusters: ClusterData[]
+  clusters: ClusterData[]= []
 ): string {
   const mergedRows: MergedRow[] = [];
   let currentResponseIdx = 0;
@@ -329,7 +329,7 @@ export function createMergedAnalysisCSV(
     
 
           concepts.forEach((concept: string) => {
-            const clusterNumber = clusters?.find(c => c.concepts.includes(concept))?.id?.toString() || "";
+            const clusterNumber = clusters?.find(c => c.concepts?.includes(concept))?.id?.toString() || "";
             mergedRows.push({
               Category: "Anxiety Management",
               Relevance: "Neutral",
