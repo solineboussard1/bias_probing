@@ -96,10 +96,9 @@ export async function POST(req: Request): Promise<Response> {
         const subgroupConcepts: Map<string, string[]> = new Map();
 
         // Process each result & prompt
-        // Process each result & prompt
 for (const result of results) {
   for (const prompt of result.prompts) {
-    // Define a helper function for mapping a demo string to its category.
+    // Helper function for mapping a demo string to its category.
     function getDemographicCategory(demo: string): string | null {
       const demoLower = demo.toLowerCase();
       if (['woman', 'man', 'non-binary'].includes(demoLower)) return 'genders';
@@ -126,7 +125,6 @@ for (const result of results) {
         }
       });
     } else {
-      // No demographics provided at all: assign "Baseline" for every expected category.
       demographics = expectedCategories.map(category => ({ category, value: 'Baseline' }));
     }
 
@@ -162,7 +160,7 @@ for (const result of results) {
         // Create an ExtractedConcepts object using the built demographics.
         const extractedConcept: ExtractedConcepts = {
           concepts,
-          demographics, // This is now an array of objects, each with category and value.
+          demographics, 
           response: response.replace(/[\n\r]+/g, ' ').trim()
         };
 
@@ -179,7 +177,6 @@ for (const result of results) {
     }
   }
 }
-
 
         // Perform clustering analysis for overall concepts
         const overallConceptFrequencies = new Map<string, number>();

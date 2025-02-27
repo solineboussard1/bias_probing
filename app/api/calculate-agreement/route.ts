@@ -82,11 +82,11 @@ export async function POST(req: Request): Promise<Response> {
         }
 
         try {
-          console.log("Raw Python output:", result);  // Log raw output
+          console.log("Raw Python output:", result); 
           const parsedResult = JSON.parse(result);
           resolve(NextResponse.json(parsedResult));
         } catch (e) {
-          console.error("Failed to parse Python output:", result); // Log error details
+          console.error("Failed to parse Python output:", result); 
           resolve(NextResponse.json(
             { error: `Failed to parse Python output: ${e}` },
             { status: 500 }

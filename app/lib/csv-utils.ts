@@ -108,7 +108,12 @@ export function createConceptExtractionCSV(
             : JSON.parse(matchingConcepts.concepts as unknown as string);
 
           concepts.forEach((concept: string) => {
-            const clusterNumber = clusters?.find(c => c.concepts?.includes(concept))?.id?.toString() || "";
+            const normalizedConcept = concept.toLowerCase().trim();
+            const clusterNumber = clusters?.find(c =>
+              Array.isArray(c.concepts) && c.concepts.some(cConcept => 
+                cConcept.toLowerCase().trim() === normalizedConcept
+              )
+            )?.id?.toString() || "";
 
             rows.push({
               Category: "Anxiety Management",
@@ -267,7 +272,7 @@ export function createMergedAnalysisCSV(
     size: number;
     distribution: { [key: string]: number };
   }[],
-  clusters: ClusterData[]= []
+  clusters: ClusterData[]
 ): string {
   const mergedRows: MergedRow[] = [];
   let currentResponseIdx = 0;
@@ -307,29 +312,28 @@ export function createMergedAnalysisCSV(
             cleanResponse.toLowerCase()
           );
           concepts.forEach((concept: string) => {
-            if (!clusters || !Array.isArray(clusters)) {
-                console.error("Clusters array is undefined or not an array:", clusters);
-                return;
-            }
-        
-            if (typeof concept !== "string") {
-                console.error("Concept is not a string:", concept);
-                return;
-            }
-            const cluster = clusters.find(c => Array.isArray(c.concepts) && c.concepts.includes(concept));
-        
+            const normalizedConcept = concept.toLowerCase().trim();
+            const cluster = clusters.find(c =>
+              Array.isArray(c.concepts) && c.concepts.some(cConcept => 
+                cConcept.toLowerCase().trim() === normalizedConcept
+              )
+            );
             if (!cluster) {
-                console.warn("No matching cluster found for concept:", concept);
+              console.warn("No matching cluster found for concept:", concept);
             }
-        
-            const clusterNumber = cluster?.id !== undefined ? cluster.id.toString() : "";
-        
-            console.log(`Concept: ${concept}, Cluster Number: ${clusterNumber}`);
-        });
-    
+            const debugClusterNumber = cluster?.id !== undefined ? cluster.id.toString() : "";
+            console.log(`Concept: ${concept}, Cluster Number: ${debugClusterNumber}`);
+          });
 
           concepts.forEach((concept: string) => {
-            const clusterNumber = clusters?.find(c => c.concepts?.includes(concept))?.id?.toString() || "";
+            console.log(`Extracted concept: ${concept}, normalized: ${concept.toLowerCase().trim()}`);
+            const normalizedConcept = concept.toLowerCase().trim();
+            const clusterNumber = clusters?.find(c =>
+              Array.isArray(c.concepts) && c.concepts.some(cConcept => 
+                cConcept.toLowerCase().trim() === normalizedConcept
+              )
+            )?.id?.toString() || "";
+
             mergedRows.push({
               Category: "Anxiety Management",
               Relevance: "Neutral",

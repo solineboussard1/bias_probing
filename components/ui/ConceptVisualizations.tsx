@@ -175,8 +175,8 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
 
   // Use the aggregated clusters returned by the backend.
   const clustersData = useMemo<ClusterData[]>(() => {
-    return Array.isArray(conceptData.clusters) ? conceptData.clusters : [];
-  }, [conceptData.clusters]);
+    return conceptData.clusters?.overall || [];
+  }, [conceptData.clusters]);  
 
   // --- Flatten the demographicDistributions for the heatmap ---
   const flattenedDemographicDistributions = useMemo(() => {
@@ -198,7 +198,7 @@ export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProp
       .filter(group => group !== "Unspecified");
   }, [conceptData.demographicDistributions]);
 
-  // Set default selected group: prefer "genders" or "ethnicities" if available.
+  // Set default selected group
   const defaultGroup = useMemo(() => {
     if (demographicGroups.includes("genders")) return "genders";
     if (demographicGroups.includes("ethnicities")) return "ethnicities";

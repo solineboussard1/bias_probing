@@ -81,6 +81,11 @@ def calculate_agreement_scores():
         print(f"Successfully read CSV with {len(grouped_df)} rows", file=sys.stderr)
         print(f"CSV columns: {grouped_df.columns.tolist()}", file=sys.stderr)
 
+        print("First 10 rows of CSV:")
+        print(grouped_df.head(10))
+        print("Unique values in Concept_Cluster:", grouped_df['Concept_Cluster'].unique())
+        print("Unique values in Dominant_Topic:", grouped_df['Dominant_Topic'].unique())
+        print("Unique values in Embeddings_Cluster:", grouped_df['Embeddings_Cluster'].unique())
         # Drop rows with missing critical labels.
         grouped_df = grouped_df.dropna(subset=['Concept_Cluster', 'Dominant_Topic', 'Embeddings_Cluster'])
 
