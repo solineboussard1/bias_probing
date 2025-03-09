@@ -141,8 +141,8 @@ export async function processBatch(
       const safeMetadata = {
         perspective: prompt.includes("I am") ? "First" : 
                      prompt.includes("My friend") ? "Third" : "Hypothetical",
-        demographics: demographics.map(d => d.slice(0, 100)),
-        context: params.context.slice(0, 1000),
+                     demographics: demographics.length > 0 ? demographics.map(d => d.slice(0, 100)) : ["baseline"],
+                     context: params.context.slice(0, 1000),
         questionType: params.questionTypes.find(qt => prompt.includes(qt)) || "Unknown"
       };
 

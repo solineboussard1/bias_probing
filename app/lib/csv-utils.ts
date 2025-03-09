@@ -80,11 +80,16 @@ function extractDemographics(demographics: string[]): {
   race: string;
   socioeconomic: string;
 } {
-  const gender = demographics.find(d => ['woman', 'man', 'non-binary'].includes(d)) || null;
+  const gender = demographics.find(d => ['woman', 'man', 'non-binary'].includes(d)) || "Unknown";
   const age = demographics.find(d => ['Young Adult', 'Middle-aged', 'Elderly'].includes(d)) || "Unknown";
   const race = demographics.find(d => ['Asian', 'Black', 'Hispanic', 'White', 'Other'].includes(d)) || "Unknown";
   const socioeconomic = demographics.find(d => ['Low income', 'Middle income', 'High income'].includes(d)) || "Unknown";
   return { gender, age, race, socioeconomic };
+}
+
+function normalizeConcept(concept: string): string {
+  // Lowercase, remove punctuation, and trim.
+  return concept.toLowerCase().replace(/[^\w\s]/g, '').trim();
 }
 
 export function createConceptExtractionCSV(
@@ -108,12 +113,14 @@ export function createConceptExtractionCSV(
             : JSON.parse(matchingConcepts.concepts as unknown as string);
 
           concepts.forEach((concept: string) => {
-            const normalizedConcept = concept.toLowerCase().trim();
-            const clusterNumber = clusters?.find(c =>
-              Array.isArray(c.concepts) && c.concepts.some(cConcept => 
-                cConcept.toLowerCase().trim() === normalizedConcept
-              )
-            )?.id?.toString() || "";
+            const normConcept = normalizeConcept(concept);
+            // Try to find a matching cluster using our normalized value.
+            const foundCluster = clusters?.find(c =>
+              Array.isArray(c.concepts) &&
+              c.concepts.some(cConcept => normalizeConcept(cConcept) === normConcept)
+            );
+            // If no match is found, assign a fallback cluster (e.g. "unclustered").
+            const clusterNumber = foundCluster ? foundCluster.id.toString() : "unclustered";
 
             rows.push({
               Category: "Anxiety Management",
@@ -140,6 +147,7 @@ export function createConceptExtractionCSV(
     delimiter: ",",
     header: true
   });
+
 }
 
 export function createLDAExtractionCSV(
@@ -311,28 +319,18 @@ export function createMergedAnalysisCSV(
             rep.replace(/[\n\r\s]+/g, ' ').trim().toLowerCase() === 
             cleanResponse.toLowerCase()
           );
-          concepts.forEach((concept: string) => {
-            const normalizedConcept = concept.toLowerCase().trim();
-            const cluster = clusters.find(c =>
-              Array.isArray(c.concepts) && c.concepts.some(cConcept => 
-                cConcept.toLowerCase().trim() === normalizedConcept
-              )
-            );
-            if (!cluster) {
-              console.warn("No matching cluster found for concept:", concept);
-            }
-            const debugClusterNumber = cluster?.id !== undefined ? cluster.id.toString() : "";
-            console.log(`Concept: ${concept}, Cluster Number: ${debugClusterNumber}`);
-          });
 
           concepts.forEach((concept: string) => {
-            console.log(`Extracted concept: ${concept}, normalized: ${concept.toLowerCase().trim()}`);
-            const normalizedConcept = concept.toLowerCase().trim();
-            const clusterNumber = clusters?.find(c =>
-              Array.isArray(c.concepts) && c.concepts.some(cConcept => 
-                cConcept.toLowerCase().trim() === normalizedConcept
-              )
-            )?.id?.toString() || "";
+            const normConcept = normalizeConcept(concept);
+            const conceptClusterMap = clusters.reduce((acc, cluster) => {
+              cluster.concepts.forEach(concept => {
+                acc[normalizeConcept(concept)] = cluster.id.toString();
+              });
+              return acc;
+            }, {} as Record<string, string>);
+
+            const clusterNumber = conceptClusterMap[normConcept] || "unclustered";
+
 
             mergedRows.push({
               Category: "Anxiety Management",
@@ -380,7 +378,6 @@ export function createMergedAnalysisCSV(
     header: true
   });
 }
-
 export function downloadCSV(csv: string, filename: string) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');

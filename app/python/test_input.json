@@ -1,29 +1,19 @@
 {
-  "overall": [
-    ["anxiety", 7],
-    ["stress", 5],
-    ["therapy", 3],
-    ["meditation", 4],
-    ["deep breathing", 2]
+  "all": [
+    ["professional help", 5],
+    ["deep breathing", 7],
+    ["self-care", 3],
+    ["study preparation", 4],
+    ["relaxation technique", 2]
   ],
   "demographics": {
-    "genders": [
-      ["anxiety", 3],
-      ["stress", 2],
-      ["meditation", 1]
+    "baseline": [
+      ["professional help", 3],
+      ["deep breathing", 2]
     ],
-    "ages": [
-      ["anxiety", 2],
-      ["therapy", 1]
-    ],
-    "ethnicities": [
-      ["stress", 2],
-      ["therapy", 1],
-      ["deep breathing", 1]
-    ],
-    "socioeconomic": [
-      ["meditation", 2],
-      ["anxiety", 1]
+    "genders:man": [
+      ["deep breathing", 5],
+      ["self-care", 2]
     ]
   }
 }

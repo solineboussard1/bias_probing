@@ -30,8 +30,9 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { useHotkeys } from 'react-hotkeys-hook';
-import { AnalysisResult, ClusterOutput,ClusterData, PromptResult, LDATopicResult, AgreementScores, ExtractedConcepts, AllResults } from './types/pipeline';
+import { AnalysisResult, ClusterOutput,ClusterData, PromptResult,  LDAResult, AgreementScores, ExtractedConcepts, AllResults } from './types/pipeline';
 import { ConceptVisualizations } from '@/components/ui/ConceptVisualizations';
+import { LDAVisualizations } from '@/components/ui/LDAVisualizations';
 import { Input } from "@/components/ui/input";
 import { EmbeddingsVisualizations } from "@/components/ui/EmbeddingsVisualizations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -92,7 +93,7 @@ const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
     healthcare: {
       primaryIssues: [
         'heart palpitations',
-        'sweating',
+        // 'sweating',
         // 'shortness of breath',
         // 'dizziness',
         // 'fear of judgement',
@@ -103,7 +104,7 @@ const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
       recommendationPatterns: [
         'Meditation',
         'Exercise',
-        'Maintaining Healthy Lifestyle',
+        // 'Maintaining Healthy Lifestyle',
         // 'Medication',
         // 'Challenging Negative Thoughts',
         // 'Limiting substances',
@@ -212,9 +213,9 @@ const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
   relevantStatements: {
     healthcare: [
       "I have a history of anxiety.",
-      "I take medications for anxiety.",
-      "I have been in therapy for my anxiety.",
-      "I regularly practice meditation to manage my anxiety.",
+      // "I take medications for anxiety.",
+      // "I have been in therapy for my anxiety.",
+      // "I regularly practice meditation to manage my anxiety.",
       "I have experienced anxiety symptoms for many years."
     ],
     finance: [
@@ -345,11 +346,6 @@ export default function Home() {
     concepts: new Map(),
     demographicDistributions: new Map()
   });
-  console.log("Concept Data before rendering:", conceptData);
-  console.log("Overall clusters:", conceptData.clusters?.overall);
-  console.log("Demographic clusters:", conceptData.clusters?.demographics);
-  
-
 
   // Add new state for file upload
   const [isProcessingFile, setIsProcessingFile] = useState(false);
@@ -371,10 +367,7 @@ export default function Home() {
   }>({ llm: false, lda: false, embeddings: false });
 
   // Add new state for LDA results
-  const [ldaResults, setLdaResults] = useState<{
-    topics: LDATopicResult[];
-    distributions: number[][];
-  } | null>(null);
+  const [ldaResults, setLdaResults] = useState<LDAResult | null>(null);
 
   // Add this state for embeddings results
   const [embeddingsResults, setEmbeddingsResults] = useState<{
@@ -658,67 +651,73 @@ export default function Home() {
                     },
                   }));
                   break;
-                  case 'concepts': {
-                    // Cast to the new ExtractedConcepts type.
-                    const extractedConcepts = data.extractedConcepts as ExtractedConcepts;
-                    allExtractedConcepts.push(extractedConcepts);
-                    
-                    setConceptData(prev => {
-                      const newConcepts = new Map(prev.concepts);
-                      const newDemographicDistributions = new Map(prev.demographicDistributions);
-                      
-                      // List the expected demographic categories.
-                      const expectedDemographics = ['genders', 'ethnicities', 'ages', 'socioeconomic'];
-                      
-                      extractedConcepts.concepts.forEach((concept: string) => {
-                        // Update the overall count for the concept.
-                        newConcepts.set(concept, (newConcepts.get(concept) || 0) + 1);
-                        
-                        // For each expected demographic category, check if the concept has an entry.
-                        expectedDemographics.forEach((demoCategory) => {
-                          // If an entry exists for this category, use its value; otherwise, default to 'Baseline'
-                          const demoValue =
-                            extractedConcepts.demographics?.find(demo => demo.category === demoCategory)?.value || 'Baseline';
-                          
-                          // Ensure the outer map (by demographic category) exists.
+                case 'concepts': {
+                  const extractedConcepts = data.extractedConcepts as ExtractedConcepts;
+                  allExtractedConcepts.push(extractedConcepts);
+
+                  setConceptData(prev => {
+                    const newConcepts = new Map(prev.concepts);
+                    const newDemographicDistributions = new Map(prev.demographicDistributions);
+
+                    const expectedDemographics = ['genders', 'ethnicities', 'ages', 'socioeconomic'];
+
+                    extractedConcepts.concepts.forEach((concept: string) => {
+                      newConcepts.set(concept, (newConcepts.get(concept) || 0) + 1);
+
+                      expectedDemographics.forEach((demoCategory) => {
+                        let demoValue: string | undefined;
+
+                        if (extractedConcepts.demographics && extractedConcepts.demographics.length > 0) {
+                          const match = extractedConcepts.demographics.find(demo => demo.category === demoCategory);
+                          if (match) {
+                            demoValue = match.value;
+                          }
+                        } else {
+                          demoValue = 'baseline';
+                        }
+
+                        if (demoValue) {
                           if (!newDemographicDistributions.has(demoCategory)) {
                             newDemographicDistributions.set(demoCategory, new Map());
                           }
                           const categoryMap = newDemographicDistributions.get(demoCategory)!;
-                          
-                          // Ensure the inner map (by demographic value) exists.
+
                           if (!categoryMap.has(demoValue)) {
                             categoryMap.set(demoValue, new Map());
                           }
                           const valueMap = categoryMap.get(demoValue)!;
-                          
-                          // Update the count for the concept under this demographic value.
+
                           valueMap.set(concept, (valueMap.get(concept) || 0) + 1);
-                        });
+                        }
                       });
-                      
-                      return {
-                        ...prev,
-                        concepts: newConcepts,
-                        demographicDistributions: newDemographicDistributions,
-                        rawResults: results,
-                        extractedConcepts: allExtractedConcepts,
-                      };
                     });
-                    break;
-                  }                  
-                  case 'clusters':
-                    const clustersData = { ...data.clusters };
-                    clustersData.overall = Array.isArray(clustersData.overall)
-                      ? clustersData.overall
-                      : Object.values(clustersData.overall || {});
-                    setConceptData(prev => ({
+
+                    return {
                       ...prev,
-                      clusters: clustersData,
+                      concepts: newConcepts,
+                      demographicDistributions: newDemographicDistributions,
                       rawResults: results,
                       extractedConcepts: allExtractedConcepts,
-                    }));
-                    break;                  
+                    };
+                  });
+
+                  break;
+                }
+
+                case 'clusters': {
+                  const clustersData = { ...data.clusters };
+                  clustersData.all = Array.isArray(clustersData.all)
+                    ? clustersData.all
+                    : Object.values(clustersData.all || {});
+
+                  setConceptData(prev => ({
+                    ...prev,
+                    clusters: clustersData,
+                    rawResults: results,
+                    extractedConcepts: allExtractedConcepts,
+                  }));
+                  break;
+                }
               }
             }
           }
@@ -728,52 +727,53 @@ export default function Home() {
       }
     }
 
-    // Update LDA progress handling
-    const ldaReader = ldaResponse.body?.getReader();
-    if (ldaReader) {
-      try {
-        while (true) {
-          const { done, value } = await ldaReader.read();
-          if (done) break;
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = JSON.parse(line.slice(5));
-              switch (data.type) {
-                case 'extraction_progress':
-                  setExtractionProgress(prev => ({
-                    ...prev,
-                    lda: {
-                      processed: data.progress.processed,
-                      total: data.progress.total,
-                      message: data.message,
-                      type: 'lda',
-                    },
-                  }));
-                  break;
-                case 'lda_concepts':
-                  setLdaResults({
-                    topics: data.topics,
-                    distributions: data.distributions,
-                  });
-                  break;
-                case 'complete':
-                  setIsExtracting(prev => ({ ...prev, lda: false }));
-                  setExtractionProgress(prev => ({ ...prev, lda: undefined }));
-                  break;
-                case 'error':
-                  toast.error(`LDA Error: ${data.error}`);
-                  setIsExtracting(prev => ({ ...prev, lda: false }));
-                  break;
-              }
+  // Update LDA progress handling
+  const ldaReader = ldaResponse.body?.getReader();
+  if (ldaReader) {
+    try {
+      while (true) {
+        const { done, value } = await ldaReader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(5));
+            switch (data.type) {
+              case 'extraction_progress':
+                setExtractionProgress(prev => ({
+                  ...prev,
+                  lda: {
+                    processed: data.progress.processed,
+                    total: data.progress.total,
+                    message: data.message,
+                    type: 'lda',
+                  },
+                }));
+                break;
+              case 'lda_concepts':
+                setLdaResults({
+                  topics: data.topics,
+                  distributions: data.distributions,
+                  demographicDistributions: data.demographic_distributions,
+                });
+                break;
+              case 'complete':
+                setIsExtracting(prev => ({ ...prev, lda: false }));
+                setExtractionProgress(prev => ({ ...prev, lda: undefined }));
+                break;
+              case 'error':
+                toast.error(`LDA Error: ${data.error}`);
+                setIsExtracting(prev => ({ ...prev, lda: false }));
+                break;
             }
           }
         }
-      } finally {
-        ldaReader.releaseLock();
       }
+    } finally {
+      ldaReader.releaseLock();
     }
+  }
 
     // Add embeddings extraction
     await extractEmbeddings(results);
@@ -909,8 +909,6 @@ export default function Home() {
         toast.error('Missing required data for agreement calculation');
         return;
       }
-      console.log('Clusters data:', conceptData.clusters?.overall);
-
 
       // Create merged CSV data
       const mergedData = createMergedAnalysisCSV(
@@ -918,9 +916,8 @@ export default function Home() {
         conceptData.extractedConcepts,
         ldaResults,
         embeddingsResults, 
-        conceptData.clusters?.overall || [] 
+        conceptData.clusters?.all || [] 
       );
-      
 
       const response = await fetch('/api/calculate-agreement', {
         method: 'POST',
@@ -1056,7 +1053,7 @@ export default function Home() {
           demographicDistributions: demographicDistributionsMap,
           clusters: allResults.conceptResults.llm.clusters
             ? {
-                overall: allResults.conceptResults.llm.clusters.overall, 
+                all: allResults.conceptResults.llm.clusters.all, 
                 demographics: {} 
               }
             : undefined,
@@ -1724,14 +1721,12 @@ export default function Home() {
                                     toast.error('Missing required data for merged analysis');
                                     return;
                                   }
-                                  console.log("Clusters data:", conceptData.clusters);
-
                                   const csv = createMergedAnalysisCSV(
                                     analysisResults,
                                     conceptData.extractedConcepts,
                                     ldaResults,
                                     embeddingsResults, 
-                                    conceptData.clusters?.overall || []
+                                    conceptData.clusters?.all || []
                                   );
                                   downloadCSV(csv, 'merged_analysis.csv');
                                 }}
@@ -1795,28 +1790,25 @@ export default function Home() {
                             </div>
                           </div>
                           <div className="hidden sm:block"> {/* Desktop-only view */}
-                          <ConceptVisualizations
-                          
+                          <ConceptVisualizations 
                             conceptData={{
                               concepts: conceptData.concepts,
                               demographicDistributions: conceptData.demographicDistributions,
-                              clusters: conceptData.clusters
-                                ? {
-                                  overall: Array.isArray(conceptData.clusters.overall)
-                                    ? conceptData.clusters.overall.map((cluster) => ({
-                                        id: cluster.id,
-                                        concepts: cluster.concepts,
-                                        frequency: cluster.frequency,
-                                        label: cluster.label,
-                                        total_frequency: cluster.total_frequency !== undefined
-                                        ? cluster.total_frequency
-                                        : Array.isArray(cluster.frequency)
-                                          ? cluster.frequency.reduce((a, b) => a + b, 0)
-                                          : 0,
-
-                                      }))
-                                    : [],
-                                    demographics: Object.fromEntries(
+                              clusters: {
+                                all: conceptData.clusters?.all?.map((cluster) => ({
+                                  id: cluster.id,
+                                  concepts: cluster.concepts,
+                                  frequency: cluster.frequency,
+                                  label: cluster.label,
+                                  total_frequency:
+                                    cluster.total_frequency !== undefined
+                                      ? cluster.total_frequency
+                                      : Array.isArray(cluster.frequency)
+                                        ? cluster.frequency.reduce((a, b) => a + b, 0)
+                                        : 0,
+                                })) ?? [],
+                                demographics: conceptData.clusters?.demographics
+                                  ? Object.fromEntries(
                                       Object.entries(conceptData.clusters.demographics).map(([demo, clusters]) => [
                                         demo,
                                         Array.isArray(clusters)
@@ -1825,22 +1817,23 @@ export default function Home() {
                                               concepts: cluster.concepts,
                                               frequency: cluster.frequency,
                                               label: cluster.label ? cluster.label : cluster.id.toString(),
-                                              total_frequency: cluster.total_frequency !== undefined
-                                                ? cluster.total_frequency
-                                                : Array.isArray(cluster.frequency)
-                                                  ? cluster.frequency.reduce((a, b) => a + b, 0)
-                                                  : 0,
+                                              total_frequency:
+                                                cluster.total_frequency !== undefined
+                                                  ? cluster.total_frequency
+                                                  : Array.isArray(cluster.frequency)
+                                                    ? cluster.frequency.reduce((a, b) => a + b, 0)
+                                                    : 0,
                                             }))
-                                          : [] 
+                                          : []
                                       ])
-                                    ),
-                                    
-                                  }
-                                : undefined,
+                                    )
+                                  : {},
+                              },
                               rawResults: conceptData.rawResults,
                               extractedConcepts: conceptData.extractedConcepts,
                             }}
                           />
+
                           </div>
                         </div>
                       )}
@@ -1858,7 +1851,7 @@ export default function Home() {
                                   return;
                                 }
                                 const csv = createLDAExtractionCSV(analysisResults, ldaResults);
-                                downloadCSV(csv, 'topic_mapping.csv');
+                                downloadCSV(csv, "topic_mapping.csv");
                               }}
                               className="flex items-center gap-2"
                             >
@@ -1866,6 +1859,8 @@ export default function Home() {
                               topic_mapping.csv
                             </Button>
                           </div>
+
+                          {/* Existing LDA Topics Display */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {ldaResults.topics.map((topic) => (
                               <Card key={topic.topic_id} className="p-4">
@@ -1873,11 +1868,7 @@ export default function Home() {
                                 <div className="space-y-2">
                                   <div className="flex flex-wrap gap-2">
                                     {topic.words.map((word, idx) => (
-                                      <Badge
-                                        key={word}
-                                        variant="secondary"
-                                        className="flex items-center gap-1"
-                                      >
+                                      <Badge key={word} variant="secondary" className="flex items-center gap-1">
                                         <span>{word}</span>
                                         <span className="text-xs opacity-70">
                                           {(topic.weights[idx] * 100).toFixed(1)}%
@@ -1889,6 +1880,30 @@ export default function Home() {
                               </Card>
                             ))}
                           </div>
+
+                          {/* LDA Visualization */}
+                          {ldaResults.demographicDistributions && (
+                            <div className="mt-6">
+                              <h3 className="text-lg font-semibold mb-2">Demographic Topic Distributions</h3>
+                              <LDAVisualizations 
+                                ldaData={{
+                                  topics: ldaResults.topics,
+                                  demographicDistributions: Object.fromEntries(
+                                    // Transforming the data
+                                    Object.entries(ldaResults.demographicDistributions).map(([key, value]) => [
+                                      key,
+                                      Object.fromEntries(
+                                        value.map((subgroup, index) => [
+                                          `subgroup_${index}`, 
+                                          subgroup 
+                                        ])
+                                      ),
+                                    ])
+                                  ),
+                                }} 
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
                     </TabsContent>

@@ -85,7 +85,8 @@ export type LDATopicResult = {
 
 export type LDAResult = {
   topics: LDATopicResult[];
-  doc_topic_distributions: number[][];
+  distributions: number[][];
+  demographicDistributions?: { [key: string]: number[][] }; 
   error?: string;
 };
 
@@ -105,7 +106,12 @@ export type ExtractedConcepts = {
 
 export type LDAExtractedConcepts = {
   topics: LDATopicResult[];
-  distributions: number[][];
+  distributions: number[][]; 
+  demographicDistributions: {
+    [category: string]: {
+      [subgroup: string]: number[][]; 
+    };
+  };
 };
 
 export type ClusterConcept = {
@@ -136,7 +142,7 @@ export type ClusterData = {
 };
 
 export type ClusterOutput = {
-  overall: ClusterData[];
+  all: ClusterData[];
   demographics: { [key: string]: ClusterData[] };
 };
 
