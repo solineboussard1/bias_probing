@@ -40,13 +40,13 @@ export async function POST(req: Request): Promise<Response> {
                 );
                 demographics.push({
                   category,
-                  value: matchingDemo || 'Baseline'
+                  value: matchingDemo || 'baseline'
                 });
               });
             } else {
               demographics = expectedCategories.map(category => ({
                 category,
-                value: 'Baseline'
+                value: 'baseline'
               }));
             }
 
@@ -120,12 +120,14 @@ export async function POST(req: Request): Promise<Response> {
                     `data: ${JSON.stringify({
                       type: 'lda_concepts',
                       topics: ldaResults.topics,
-                      distributions: ldaResults.doc_topic_distributions,
+                      distributions: ldaResults.distributions,
+                      demographicDistributions: ldaResults.demographicDistributions, 
                       progress: { processed: responses.length, total: responses.length }
                     })}\n\n`
                   )
                 );
-              }
+                  
+                
 
               // Send completion message.
               controller.enqueue(
@@ -136,6 +138,7 @@ export async function POST(req: Request): Promise<Response> {
                   })}\n\n`
                 )
               );
+                }
             } catch {
               controller.enqueue(
                 encoder.encode(

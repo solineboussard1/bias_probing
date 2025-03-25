@@ -67,39 +67,55 @@ export function EmbeddingsVisualizations({ results, analysisResults }: Embedding
                 <h4 className="font-medium mb-4">PCA Visualization of Embeddings</h4>
                 <div style={{ height: '400px' }}>
                     <ResponsiveScatterPlot
-                        data={scatterData}
-                        margin={{ top: 20, right: 20, bottom: 70, left: 70 }}
-                        xScale={{ type: 'linear', min: 'auto', max: 'auto' }}
-                        yScale={{ type: 'linear', min: 'auto', max: 'auto' }}
-                        axisTop={null}
-                        axisRight={null}
-                        axisBottom={{
-                            tickSize: 5,
-                            tickPadding: 5,
-                            tickRotation: 0,
-                            legend: 'PC1',
-                            legendPosition: 'middle',
-                            legendOffset: 46
-                        }}
-                        axisLeft={{
-                            tickSize: 5,
-                            tickPadding: 5,
-                            tickRotation: 0,
-                            legend: 'PC2',
-                            legendPosition: 'middle',
-                            legendOffset: -60
-                        }}
-                        colors={{ scheme: 'category10' }}
-                        tooltip={({ node }) => (
-                            <div className="bg-white p-2 shadow-lg rounded-lg border text-sm">
-                                <strong>{node.serieId}</strong>
-                                <br />
-                                {node.data.response.slice(0, 100)}...
-                            </div>
-                        )}
+                    data={scatterData}
+                    margin={{ top: 20, right: 20, bottom: 70, left: 70 }}
+                    xScale={{ type: 'linear', min: 'auto', max: 'auto' }}
+                    yScale={{ type: 'linear', min: 'auto', max: 'auto' }}
+                    axisTop={null}
+                    axisRight={null}
+                    axisBottom={{
+                        tickSize: 5,
+                        tickPadding: 5,
+                        tickRotation: 0,
+                        legend: 'PC1',
+                        legendPosition: 'middle',
+                        legendOffset: 46
+                    }}
+                    axisLeft={{
+                        tickSize: 5,
+                        tickPadding: 5,
+                        tickRotation: 0,
+                        legend: 'PC2',
+                        legendPosition: 'middle',
+                        legendOffset: -60
+                    }}
+                    colors={{ scheme: 'category10' }}
+                    tooltip={({ node }) => {
+                        // Extract cluster information for the tooltip
+                        const cluster = results.find(c => `Cluster ${c.cluster_id + 1}` === node.serieId);
+                        if (!cluster) return null;
+
+                        // Prepare the demographic distribution string, removing 'default:' prefix
+                        const distribution = Object.entries(cluster.distribution)
+                        .map(([key, value]) => {
+                            const label = key.startsWith('default:') ? key.replace('default:', '') : key; // Remove 'default:' prefix
+                            return `<strong>${label}:</strong> ${value}`;
+                        })
+                        .join('<br />');
+
+                        return (
+                        <div className="bg-white p-2 shadow-lg rounded-lg border text-sm">
+                            <strong className="block">{node.serieId}</strong>
+                            <br />
+                            <strong>Distribution:</strong>
+                            <br />
+                            <div dangerouslySetInnerHTML={{ __html: distribution }} />
+                        </div>
+                        );
+                    }}
                     />
                 </div>
-            </Card>
+                </Card>
 
             {/* Existing cluster cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -46,7 +46,6 @@ def calculate_agreement(cluster_labels, topic_labels, pca_cluster_labels):
     agreement_score_cp = total_matches_cp / len(cluster_labels) if len(cluster_labels) > 0 else 0
     agreement_score_tp = total_matches_tp / len(cluster_labels) if len(cluster_labels) > 0 else 0
 
-
     return (
         (agreement_score_ct, agreement_score_cp, agreement_score_tp),
         (confusion_matrix_cluster_topic, confusion_matrix_cluster_pca, confusion_matrix_topic_pca),
@@ -81,11 +80,12 @@ def calculate_agreement_scores():
         print(f"Successfully read CSV with {len(grouped_df)} rows", file=sys.stderr)
         print(f"CSV columns: {grouped_df.columns.tolist()}", file=sys.stderr)
 
-        print("First 10 rows of CSV:")
-        print(grouped_df.head(10))
-        print("Unique values in Concept_Cluster:", grouped_df['Concept_Cluster'].unique())
-        print("Unique values in Dominant_Topic:", grouped_df['Dominant_Topic'].unique())
-        print("Unique values in Embeddings_Cluster:", grouped_df['Embeddings_Cluster'].unique())
+        print("First 10 rows of CSV:", file=sys.stderr)
+        print(grouped_df.head(10), file=sys.stderr)
+        print("Unique values in Concept_Cluster:", grouped_df['Concept_Cluster'].unique(), file=sys.stderr)
+        print("Unique values in Dominant_Topic:", grouped_df['Dominant_Topic'].unique(), file=sys.stderr)
+        print("Unique values in Embeddings_Cluster:", grouped_df['Embeddings_Cluster'].unique(), file=sys.stderr)
+        
         # Drop rows with missing critical labels.
         grouped_df = grouped_df.dropna(subset=['Concept_Cluster', 'Dominant_Topic', 'Embeddings_Cluster'])
 
@@ -161,7 +161,6 @@ def calculate_agreement_scores():
 if __name__ == "__main__":
     try:
         results = calculate_agreement_scores()
-        # Only the final JSON output is printed to stdout
         print(json.dumps(results, cls=NumpyJSONEncoder))
     except Exception as e:
         error_details = {

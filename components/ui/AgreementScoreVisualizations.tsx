@@ -105,15 +105,32 @@ export function AgreementScoreVisualizations({
             labelFormatter={(label: number) => `PCA 1: ${label.toFixed(2)}`}
           />
           <Scatter name={title} data={data} fill="#8884d8">
-            {data.map((entry: AgreementVisualizationPoint, idx: number) => (
+          {data
+            .filter((entry) => entry[dataKey] === 1) 
+            .map((entry: AgreementVisualizationPoint, idx: number) => (
               <circle
                 key={idx}
+                cx={entry.pca_one}
+                cy={entry.pca_two}
                 r={4}
-                fill={entry[dataKey] ? '#22c55e' : '#ef4444'}
+                fill="#22c55e" // Green for agreement
                 fillOpacity={0.6}
               />
             ))}
-          </Scatter>
+          {data
+            .filter((entry) => entry[dataKey] === 0) 
+            .map((entry: AgreementVisualizationPoint, idx: number) => (
+              <circle
+                key={idx}
+                cx={entry.pca_one}
+                cy={entry.pca_two}
+                r={4}
+                fill="#ef4444" // Red for disagreement
+                fillOpacity={0.6}
+              />
+            ))}
+        </Scatter>
+
         </ScatterChart>
       </ResponsiveContainer>
     </div>

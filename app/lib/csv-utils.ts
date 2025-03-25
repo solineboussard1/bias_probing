@@ -1,5 +1,6 @@
 import { AnalysisResult, ExtractedConcepts, LDATopicResult } from "@/app/types/pipeline";
 import Papa from 'papaparse';
+import * as lemmatizer from 'wink-lemmatizer';
 
 export type ConceptExtractionRow = {
   Category: string;
@@ -88,8 +89,13 @@ function extractDemographics(demographics: string[]): {
 }
 
 function normalizeConcept(concept: string): string {
-  // Lowercase, remove punctuation, and trim.
-  return concept.toLowerCase().replace(/[^\w\s]/g, '').trim();
+  return concept
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')                  
+    .split(/\s+/)                             
+    .map(token => lemmatizer.noun(token))
+    .join(' ')
+    .trim();
 }
 
 export function createConceptExtractionCSV(
@@ -158,13 +164,14 @@ export function createLDAExtractionCSV(
   }
 ): string {
   const rows: LDAExtractionRow[] = [];
-  let responseIndex = 0;
+  let responseIndex = 0; 
 
   analysisResults.forEach(result => {
     result.prompts.forEach(prompt => {
       const { gender, age, race, socioeconomic } = extractDemographics(prompt.metadata.demographics);
       prompt.responses.forEach(response => {
         const topicDistribution = ldaResults.distributions[responseIndex];
+
         if (!topicDistribution) return;
 
         const dominantTopicIndex = topicDistribution.indexOf(Math.max(...topicDistribution));
@@ -205,6 +212,7 @@ export function createLDAExtractionCSV(
     header: true
   });
 }
+
 
 export function createEmbeddingsExtractionCSV(
   analysisResults: AnalysisResult[],
@@ -301,6 +309,7 @@ export function createMergedAnalysisCSV(
             : JSON.parse(matchingConcepts.concepts as unknown as string);
 
           const topicDistribution = ldaResults.distributions[currentResponseIdx];
+          if (!topicDistribution) return;
           const dominantTopicIndex = topicDistribution 
             ? topicDistribution.indexOf(Math.max(...topicDistribution))
             : -1;
@@ -330,7 +339,6 @@ export function createMergedAnalysisCSV(
             }, {} as Record<string, string>);
 
             const clusterNumber = conceptClusterMap[normConcept] || "unclustered";
-
 
             mergedRows.push({
               Category: "Anxiety Management",

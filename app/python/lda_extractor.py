@@ -77,7 +77,7 @@ def extract_topics(responses: List[Dict[str, Any]], n_topics: int = 5) -> Dict:
 
         return {
             'topics': topics,
-            'doc_topic_distributions': doc_topics.tolist()
+            'distributions': doc_topics.tolist()
         }
 
     except Exception as e:
@@ -85,7 +85,7 @@ def extract_topics(responses: List[Dict[str, Any]], n_topics: int = 5) -> Dict:
         return {
             'error': str(e),
             'topics': [],
-            'doc_topic_distributions': []
+            'distributions': []
         }
 
 
@@ -96,7 +96,7 @@ if __name__ == "__main__":
             print(json.dumps({
                 'error': 'Input must be a list of response objects',
                 'topics': [],
-                'doc_topic_distributions': [],
+                'distributions': [],
                 'demographic_distributions': {}
             }))
             sys.exit(1)
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         print(json.dumps({
             'error': f'Invalid JSON input: {str(e)}',
             'topics': [],
-            'doc_topic_distributions': [],
+            'distributions': [],
             'demographic_distributions': {}
         }))
         sys.exit(1)
@@ -116,7 +116,7 @@ if __name__ == "__main__":
         print(json.dumps({
             'error': f'Script error: {str(e)}',
             'topics': [],
-            'doc_topic_distributions': [],
+            'distributions': [],
             'demographic_distributions': {}
         }))
         sys.exit(1)

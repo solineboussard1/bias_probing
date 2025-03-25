@@ -3,6 +3,8 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 import requests
+from sklearn.metrics import silhouette_score
+
 import json
 import sys
 import logging
@@ -34,7 +36,7 @@ def get_embeddings(texts: List[str]) -> np.ndarray:
 
         logging.info(f"Getting embeddings for {len(texts)} texts")
         payload = {"inputs": texts, "options": {"wait_for_model": True}}
-        logging.info("Payload: " + json.dumps(payload))
+        # logging.info("Payload: " + json.dumps(payload))
 
         logging.info("Making request to Hugging Face API")
         response = requests.post(
@@ -109,12 +111,22 @@ def extract_concepts_with_embeddings(input_data: List[Dict[str, Any]]) -> List[D
         explained_variance = pca.explained_variance_ratio_
         print(f"PCA explained variance ratios: {explained_variance}", file=sys.stderr)
         
-        n_clusters = min(4, len(responses))
-        if n_clusters < 2:
-            n_clusters = 1
-        
+        # Find the best number of clusters using Silhouette Score
+        best_n_clusters = 2
+        best_score = -1
+
+        for k in range(2, min(len(responses), 10)):  # Try clusters from 2 to 10 (or response count)
+            kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+            labels = kmeans.fit_predict(embeddings)
+            score = silhouette_score(embeddings, labels)
+            
+            if score > best_score:
+                best_score = score
+                n_clusters = k
+
         kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
         cluster_labels = kmeans.fit_predict(embeddings)
+
         
         cluster_concepts = []
         for i in range(n_clusters):

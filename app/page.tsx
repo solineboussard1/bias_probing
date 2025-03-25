@@ -926,6 +926,8 @@ export default function Home() {
       });
 
       if (!response.ok) {
+        const errorMessage = await response.text(); 
+        console.error('Error response:', errorMessage);
         throw new Error('Failed to calculate agreement scores');
       }
 
@@ -1889,14 +1891,10 @@ export default function Home() {
                                 ldaData={{
                                   topics: ldaResults.topics,
                                   demographicDistributions: Object.fromEntries(
-                                    // Transforming the data
-                                    Object.entries(ldaResults.demographicDistributions).map(([key, value]) => [
+                                    Object.entries(ldaResults.demographicDistributions).map(([key, subgroupObj]) => [
                                       key,
                                       Object.fromEntries(
-                                        value.map((subgroup, index) => [
-                                          `subgroup_${index}`, 
-                                          subgroup 
-                                        ])
+                                        Object.entries(subgroupObj).map(([subgroupKey, arr]) => [subgroupKey, arr as number[]])
                                       ),
                                     ])
                                   ),

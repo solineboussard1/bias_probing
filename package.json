@@ -46,7 +46,8 @@
     "remark-gfm": "^4.0.0",
     "sonner": "^1.7.0",
     "tailwind-merge": "^2.5.4",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "wink-lemmatizer": "^3.0.4"
   },
   "devDependencies": {
     "@types/d3": "^7.4.3",
