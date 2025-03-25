@@ -1,71 +1,182 @@
 'use client';
 
+import { useState } from 'react';
 import { AgreementScores, AgreementVisualizationPoint, ContingencyTable } from '@/app/types/pipeline';
-import { Scatter, ScatterChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
+import {
+  ScatterChart,
+  Scatter,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+} from 'recharts';
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type AgreementScoreVisualizationsProps = {
   agreementData: AgreementScores | null;
-  embeddingsData?: { pca_one: number; pca_two: number; }[];
+  embeddingsData?: { pca_one: number; pca_two: number }[];
 };
 
-const ContingencyTableView = ({ table, title }: { table: ContingencyTable, title: string }) => (
-  <Card className="w-full">
-    <CardContent className="p-4">
-      <h3 className="text-sm font-medium mb-4">{title}</h3>
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>-</TableHead>
-              {table.colLabels.map((label, i) => (
-                <TableHead key={i}>{label}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {table.table.map((row, i) => (
-              <TableRow key={i}>
-                <TableCell className="font-medium">{table.rowLabels[i]}</TableCell>
-                {row.map((cell, j) => (
-                  <TableCell key={j}>{cell}</TableCell>
+type HeatmapViewProps = {
+  tableData: ContingencyTable;
+  title: string;
+  xLabel: string; 
+  yLabel: string; 
+};
+
+const CompactHeatmapView = ({ tableData, title, xLabel, yLabel }: HeatmapViewProps) => {
+  const maxVal = Math.max(...tableData.table.flat());
+
+  const getCellColor = (value: number) => {
+    const intensity = maxVal ? Math.round((value / maxVal) * 255) : 0;
+    return `rgb(${255 - intensity}, ${255 - intensity}, 255)`;
+  };
+
+  return (
+    <Card className="w-full">
+      <CardContent className="p-4">
+        <h3 className="text-base font-medium mb-3">{title}</h3>
+
+        <div className="overflow-x-auto">
+          <Table className="table-auto w-full border-collapse">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="border border-gray-300 bg-gray-100" />
+                <TableHead
+                  colSpan={tableData.colLabels.length}
+                  className="border border-gray-300 bg-gray-100 text-center font-medium py-2"
+                >
+                  {xLabel} 
+                </TableHead>
+              </TableRow>
+
+              <TableRow>
+                <TableHead
+                  rowSpan={tableData.rowLabels.length + 1}
+                  className="border border-gray-300 bg-gray-100 text-center font-medium px-2 py-1"
+                >
+                  {yLabel} 
+                </TableHead>
+                {tableData.colLabels.map((colLabel, colIndex) => (
+                  <TableHead
+                    key={colIndex}
+                    className="border border-gray-300 bg-gray-100 text-center px-2 py-1"
+                    style={{ width: '4rem' }}
+                  >
+                    {colLabel}
+                  </TableHead>
                 ))}
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </CardContent>
-  </Card>
-);
+            </TableHeader>
 
-const MappingView = ({ 
-  mapping, 
-  title 
-}: { 
-  mapping: { [key: string]: number }, 
-  title: string 
-}) => (
-  <Card className="w-full">
-    <CardContent className="p-4">
-      <h3 className="text-sm font-medium mb-4">{title}</h3>
-      <div className="space-y-2">
-        {Object.entries(mapping).map(([key, value]) => (
-          <div key={key} className="flex justify-between items-center text-sm">
-            <span>{key}</span>
-            <span>→</span>
-            <span>{value}</span>
-          </div>
-        ))}
-      </div>
-    </CardContent>
-  </Card>
-);
+            <TableBody>
+              {tableData.rowLabels.map((rowLabel, rowIndex) => (
+                <TableRow key={rowIndex}>
+                  <TableCell className="border border-gray-300 bg-gray-100 text-center font-medium px-2 py-1"
+                  style={{width: '4rem'}}
+                  >
+                    {rowLabel}
+                  </TableCell>
 
-export function AgreementScoreVisualizations({
-  agreementData
-}: AgreementScoreVisualizationsProps) {
+                  {/* Data cells: Heatmap values */}
+                  {tableData.table[rowIndex].map((cell, cellIndex) => (
+                    <TableCell
+                      key={cellIndex}
+                      className="border border-gray-300 text-center px-2 py-1"
+                      style={{ backgroundColor: getCellColor(cell), width: '4rem' }}
+                    >
+                      {cell}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+type CustomShapeProps = {
+  cx: number;
+  cy: number;
+  payload: AgreementVisualizationPoint;
+};
+
+const CombinedScatterPlot = ({ data }: { data: AgreementVisualizationPoint[] }) => {
+  const enhancedData = data.map((d) => {
+    const aggregateAgreement = d.cluster_topic_agree + d.cluster_pca_agree + d.topic_pca_agree;
+    return { ...d, aggregateAgreement };
+  });
+
+  const getColor = (score: number) => {
+    if (score === 3) return "#006400"; 
+    if (score === 2) return "#32CD32"; 
+    if (score === 1) return "#FFA500"; 
+    return "#DC143C";
+  };
+
+  return (
+    <div className="h-[400px] w-full p-4 border rounded-lg">
+      <h3 className="text-sm font-medium mb-2">Combined Agreement Visualization</h3>
+      <ResponsiveContainer width="100%" height={350}>
+        <ScatterChart margin={{ top: 10, right: 30, bottom: 40, left: 40 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            dataKey="pca_one"
+            type="number"
+            name="PCA Dimension 1"
+            label={{ value: "PCA Dimension 1", position: "bottom", fill: "#333" }}
+          />
+          <YAxis
+            dataKey="pca_two"
+            type="number"
+            name="PCA Dimension 2"
+            label={{ value: "PCA Dimension 2", angle: -90, position: "insideLeft", fill: "#333" }}
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (active && payload && payload.length) {
+                const point = payload[0].payload as AgreementVisualizationPoint & { aggregateAgreement: number };
+                return (
+                  <div className="bg-white p-2 border rounded">
+                    <div><strong>PCA 1:</strong> {point.pca_one.toFixed(2)}</div>
+                    <div><strong>PCA 2:</strong> {point.pca_two.toFixed(2)}</div>
+                    <div><strong>Cluster-Topic:</strong> {point.cluster_topic_agree ? 'Agree' : 'Disagree'}</div>
+                    <div><strong>Cluster-Embedding:</strong> {point.cluster_pca_agree ? 'Agree' : 'Disagree'}</div>
+                    <div><strong>Topic-Embedding:</strong> {point.topic_pca_agree ? 'Agree' : 'Disagree'}</div>
+                    <div><strong>Aggregate:</strong> {point.aggregateAgreement} / 3</div>
+                  </div>
+                );
+              }
+              return null;
+            }}
+          />
+          <Scatter
+            name="Data Points"
+            data={enhancedData}
+            fill="#8884d8"
+            shape={(props: unknown) => {
+              const customProps = props as CustomShapeProps;
+              const { cx, cy, payload } = customProps;
+              const color = getColor((payload as any).aggregateAgreement);
+              return (
+                <circle cx={cx} cy={cy} r={5} fill={color} stroke="#333" strokeWidth={1} />
+              );
+            }}
+          />
+        </ScatterChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+export function AgreementScoreVisualizations({ agreementData }: AgreementScoreVisualizationsProps) {
+  const [heatmapType, setHeatmapType] = useState<'cluster_topic' | 'cluster_pca' | 'topic_pca'>('cluster_topic');
+
   if (!agreementData) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -74,70 +185,40 @@ export function AgreementScoreVisualizations({
     );
   }
 
-  const ScatterPlot = ({
-    data,
-    dataKey,
-    title
-  }: {
-    data: AgreementVisualizationPoint[];
-    dataKey: keyof Pick<AgreementVisualizationPoint, 'cluster_topic_agree' | 'cluster_pca_agree' | 'topic_pca_agree'>;
-    title: string;
-  }) => (
-    <div className="h-[300px] w-full p-4 border rounded-lg">
-      <h3 className="text-sm font-medium mb-2">{title}</h3>
-      <ResponsiveContainer width="100%" height={250}>
-        <ScatterChart margin={{ top: 10, right: 30, bottom: 40, left: 40 }}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            dataKey="pca_one"
-            type="number"
-            name="PCA Dimension 1"
-            label={{ value: "PCA Dimension 1", position: "bottom" }}
-          />
-          <YAxis
-            dataKey="pca_two"
-            type="number"
-            name="PCA Dimension 2"
-            label={{ value: "PCA Dimension 2", angle: -90, position: "insideLeft" }}
-          />
-          <Tooltip
-            formatter={(value: number) => [value ? 'Agree' : 'Disagree', 'Agreement']}
-            labelFormatter={(label: number) => `PCA 1: ${label.toFixed(2)}`}
-          />
-          <Scatter name={title} data={data} fill="#8884d8">
-          {data
-            .filter((entry) => entry[dataKey] === 1) 
-            .map((entry: AgreementVisualizationPoint, idx: number) => (
-              <circle
-                key={idx}
-                cx={entry.pca_one}
-                cy={entry.pca_two}
-                r={4}
-                fill="#22c55e" // Green for agreement
-                fillOpacity={0.6}
-              />
-            ))}
-          {data
-            .filter((entry) => entry[dataKey] === 0) 
-            .map((entry: AgreementVisualizationPoint, idx: number) => (
-              <circle
-                key={idx}
-                cx={entry.pca_one}
-                cy={entry.pca_two}
-                r={4}
-                fill="#ef4444" // Red for disagreement
-                fillOpacity={0.6}
-              />
-            ))}
-        </Scatter>
-
-        </ScatterChart>
-      </ResponsiveContainer>
-    </div>
-  );
+  let heatmapData: ContingencyTable;
+  let heatmapTitle: string;
+  let xLabel: string;
+  let yLabel: string;
+  switch (heatmapType) {
+    case 'cluster_topic':
+      heatmapData = agreementData.mapping_data.contingency_tables.cluster_topic;
+      heatmapTitle = 'Cluster-Topic Heatmap';
+      xLabel = 'Topics';   
+      yLabel = 'Clusters'; 
+      break;
+    case 'cluster_pca':
+      heatmapData = agreementData.mapping_data.contingency_tables.cluster_pca;
+      heatmapTitle = 'Cluster-PCA Heatmap';
+      xLabel = 'PCA Clusters';
+      yLabel = 'Clusters';
+      break;
+    case 'topic_pca':
+      heatmapData = agreementData.mapping_data.contingency_tables.topic_pca;
+      heatmapTitle = 'Topic-PCA Heatmap';
+      xLabel = 'PCA Clusters';
+      yLabel = 'Topics';
+      break;
+    default:
+      heatmapData = agreementData.mapping_data.contingency_tables.cluster_topic;
+      heatmapTitle = 'Cluster-Topic Heatmap';
+      xLabel = 'Topics';
+      yLabel = 'Clusters';
+      break;
+  }
 
   return (
     <div className="space-y-6">
+      {/* Summary Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-lg border bg-card">
         <div>
           <p className="font-medium">Cluster-Topic Agreement:</p>
@@ -153,53 +234,90 @@ export function AgreementScoreVisualizations({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MappingView 
-          mapping={agreementData.mapping_data.cluster_topic_mapping} 
-          title="Cluster to Topic Mapping" 
-        />
-        <MappingView 
-          mapping={agreementData.mapping_data.cluster_pca_mapping} 
-          title="Cluster to PCA Mapping" 
-        />
-        <MappingView 
-          mapping={agreementData.mapping_data.topic_pca_mapping} 
-          title="Topic to PCA Mapping" 
-        />
+      {/* Combined Scatter Plot */}
+      <CombinedScatterPlot data={agreementData.visualization_data} />
+
+      {/* Heatmap Toggle */}
+      <div className="flex gap-2 justify-center">
+        <button
+          className={`px-3 py-1 rounded ${
+            heatmapType === 'cluster_topic' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
+          }`}
+          onClick={() => setHeatmapType('cluster_topic')}
+        >
+          Cluster-Topic
+        </button>
+        <button
+          className={`px-3 py-1 rounded ${
+            heatmapType === 'cluster_pca' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
+          }`}
+          onClick={() => setHeatmapType('cluster_pca')}
+        >
+          Cluster-PCA
+        </button>
+        <button
+          className={`px-3 py-1 rounded ${
+            heatmapType === 'topic_pca' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
+          }`}
+          onClick={() => setHeatmapType('topic_pca')}
+        >
+          Topic-PCA
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ContingencyTableView 
-          table={agreementData.mapping_data.contingency_tables.cluster_topic}
-          title="Cluster-Topic Contingency Table"
-        />
-        <ContingencyTableView 
-          table={agreementData.mapping_data.contingency_tables.cluster_pca}
-          title="Cluster-PCA Contingency Table"
-        />
-        <ContingencyTableView 
-          table={agreementData.mapping_data.contingency_tables.topic_pca}
-          title="Topic-PCA Contingency Table"
-        />
-      </div>
+      {/* Compact Heatmap */}
+      <CompactHeatmapView
+        tableData={heatmapData}
+        title={heatmapTitle}
+        xLabel={xLabel}
+        yLabel={yLabel}
+      />
 
-      <div className="grid grid-cols-1 gap-4">
-        <ScatterPlot
-          data={agreementData.visualization_data}
-          dataKey="cluster_topic_agree"
-          title="Cluster-Topic Agreement"
-        />
-        <ScatterPlot
-          data={agreementData.visualization_data}
-          dataKey="cluster_pca_agree"
-          title="Cluster-Embedding Agreement"
-        />
-        <ScatterPlot
-          data={agreementData.visualization_data}
-          dataKey="topic_pca_agree"
-          title="Topic-Embedding Agreement"
-        />
+      {/* Mapping Views */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="w-full">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-medium mb-4">Cluster to Topic Mapping</h3>
+            <div className="space-y-2">
+              {Object.entries(agreementData.mapping_data.cluster_topic_mapping).map(([key, value]) => (
+                <div key={key} className="flex justify-between items-center text-sm">
+                  <span>{key}</span>
+                  <span>→</span>
+                  <span>{value}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="w-full">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-medium mb-4">Cluster to PCA Mapping</h3>
+            <div className="space-y-2">
+              {Object.entries(agreementData.mapping_data.cluster_pca_mapping).map(([key, value]) => (
+                <div key={key} className="flex justify-between items-center text-sm">
+                  <span>{key}</span>
+                  <span>→</span>
+                  <span>{value}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="w-full">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-medium mb-4">Topic to PCA Mapping</h3>
+            <div className="space-y-2">
+              {Object.entries(agreementData.mapping_data.topic_pca_mapping).map(([key, value]) => (
+                <div key={key} className="flex justify-between items-center text-sm">
+                  <span>{key}</span>
+                  <span>→</span>
+                  <span>{value}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
-} 
+}
