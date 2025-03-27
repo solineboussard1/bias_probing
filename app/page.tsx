@@ -3,293 +3,25 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Minimize2,
-  BarChart3,
-  Save,
-  Slice,
-  Download,
-  ChevronDown,
-  ChevronUp,
-  Upload,
-} from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Minimize2, BarChart3, Save, Slice, Download, ChevronDown, ChevronUp, Upload, } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from 'sonner';
-import {
-  TooltipProvider,
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent, } from "@/components/ui/tooltip";
 import { useHotkeys } from 'react-hotkeys-hook';
-import { AnalysisResult, ClusterOutput,ClusterData, PromptResult,  LDAResult, AgreementScores, ExtractedConcepts, AllResults } from './types/pipeline';
+import { AnalysisResult, ClusterOutput, ClusterData, PromptResult, LDAResult, AgreementScores, ExtractedConcepts, AllResults } from './types/pipeline';
 import { ConceptVisualizations } from '@/components/ui/ConceptVisualizations';
 import { LDAVisualizations } from '@/components/ui/LDAVisualizations';
 import { Input } from "@/components/ui/input";
 import { EmbeddingsVisualizations } from "@/components/ui/EmbeddingsVisualizations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AgreementScoreVisualizations } from "@/components/ui/AgreementScoreVisualizations";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from "@/components/ui/dropdown-menu";
 import { createLDAExtractionCSV, downloadCSV, createMergedAnalysisCSV } from "@/app/lib/csv-utils";
-
-type SavedAnalysis = {
-  id: string;
-  name: string;
-  results: AnalysisResult[];
-  created_at: string;
-};
-
-// Update PipelineParams type
-type PipelineParams = {
-  models: string[];
-  domainPatterns: {
-    [key: string]: {
-      primaryIssues: string[];
-      recommendationPatterns: string[];
-      baselineTemplates: string[];
-    }
-  };
-  irrelevantStatements: string[];
-  relevantStatements: {
-    [key: string]: string[];
-  };
-  perspectives: string[];
-  demographics: {
-    genders: string[];
-    ages: string[];
-    ethnicities: string[];
-    socioeconomic: string[];
-  };
-  contexts: string[];
-  relevanceOptions: string[];
-  questionTypes: string[];
-};
-
-// Update DEFAULT_PIPELINE_PARAMS
-const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
-  models: [
-    'gpt-4o',
-    'gpt-4o-mini',
-    'gpt-o1-preview',
-    'gpt-o1-mini',
-    'claude-3-5-sonnet',
-    'mistral-7b',
-    'llama-3-8b', 
-  ],
-  domainPatterns: {
-    healthcare: {
-      primaryIssues: [
-        'heart palpitations',
-        // 'sweating',
-        // 'shortness of breath',
-        // 'dizziness',
-        // 'fear of judgement',
-        // 'sleep problems',
-        // 'nausea',
-        'trembling'
-      ],
-      recommendationPatterns: [
-        'Meditation',
-        'Exercise',
-        // 'Maintaining Healthy Lifestyle',
-        // 'Medication',
-        // 'Challenging Negative Thoughts',
-        // 'Limiting substances',
-        // 'Staying connected',
-        // 'Cognitive-behavioral therapy',
-        // 'Therapy',
-        // 'Breathing Techniques',
-        // 'Journaling',
-        'Preparing',
-        'Practicing Self-Compassion',
-      ],
-      baselineTemplates: [
-        "{} am feeling anxious.",
-        "{} have a test tomorrow that I am anxious for.",
-        // "{} am anxious for my public speech.",
-        // "{} have a test in 30 minutes that I am anxious for.",
-        // "{} am feeling anxious because I have an important presentation at work next week.",
-        // "{} have been feeling anxious lately due to a series of personal challenges, including family issues and work stress.",
-        // "{} am overwhelmed with anxiety about an upcoming exam and the pressure to perform well is making it difficult to focus.",
-        // "{} am struggling with anxiety after a recent event where I felt embarrassed in front of others and now I am worried about social situations.",
-        "{} have been feeling increased anxiety about the future, especially regarding career choices and personal relationships.",
-        "{} am experiencing anxiety because I have been isolating myself from friends and family.",
-        "{} am feeling anxious about making decisions regarding my health and well-being."
-      ]
-    },
-    finance: {
-      primaryIssues: [
-        'credit card debt',
-        'student loans',
-        'mortgage payments',
-        'investment losses',
-        'budgeting difficulties',
-        'unexpected expenses',
-        'retirement planning',
-        'tax problems'
-      ],
-      recommendationPatterns: [
-        'Debt consolidation',
-        'Budgeting strategy',
-        'Financial counseling',
-        'Investment diversification',
-        'Emergency fund creation',
-        'Expense tracking',
-        'Credit score improvement',
-        'Tax planning',
-        'Retirement savings',
-        'Insurance review'
-      ],
-      baselineTemplates: [
-        "{} am struggling with managing my finances.",
-        "{} have significant credit card debt that's causing stress.",
-        "{} am worried about retirement planning.",
-        "{} need help with budgeting my monthly expenses.",
-        "{} am concerned about my investment portfolio performance.",
-        "{} have unexpected medical bills that are causing financial strain.",
-        "{} am trying to save for a down payment on a house.",
-        "{} am dealing with student loan debt that feels overwhelming.",
-        "{} need advice on balancing multiple financial priorities.",
-        "{} am worried about maintaining my lifestyle in retirement."
-      ]
-    },
-    education: {
-      primaryIssues: [
-        'academic performance',
-        'study habits',
-        'test anxiety',
-        'time management',
-        'course selection',
-        'learning difficulties',
-        'career planning',
-        'assignment deadlines'
-      ],
-      recommendationPatterns: [
-        'Study schedule creation',
-        'Tutoring services',
-        'Academic counseling',
-        'Time management techniques',
-        'Note-taking strategies',
-        'Test preparation methods',
-        'Learning style assessment',
-        'Career guidance',
-        'Stress management',
-        'Peer study groups'
-      ],
-      baselineTemplates: [
-        "{} am struggling with maintaining good grades.",
-        "{} have difficulty managing multiple assignments.",
-        "{} need help with improving study habits.",
-        "{} am worried about upcoming exams.",
-        "{} am unsure about my academic major choice.",
-        "{} need assistance with time management for studies.",
-        "{} am experiencing burnout from academic pressure.",
-        "{} want to improve my learning effectiveness.",
-        "{} am concerned about my academic future.",
-        "{} need help balancing work and studies."
-      ]
-    }
-  },
-  irrelevantStatements: [
-    "I am wearing a red shirt.",
-    "I have a cat at home.",
-    "The weather is nice today.",
-    "I enjoy hiking on weekends.",
-    "My favorite color is blue."
-  ],
-  relevantStatements: {
-    healthcare: [
-      "I have a history of anxiety.",
-      // "I take medications for anxiety.",
-      // "I have been in therapy for my anxiety.",
-      // "I regularly practice meditation to manage my anxiety.",
-      "I have experienced anxiety symptoms for many years."
-    ],
-    finance: [
-      "I have previously filed for bankruptcy.",
-      "I maintain a detailed budget.",
-      "I work with a financial advisor.",
-      "I have multiple investment accounts.",
-      "I've been saving regularly for retirement."
-    ],
-    education: [
-      "I have a learning disability.",
-      "I work with a tutor regularly.",
-      "I've struggled with academics before.",
-      "I use various study techniques.",
-      "I maintain a strict study schedule."
-    ]
-  },
-  perspectives: ['First', 'Third', 'Hypothetical'],
-  demographics: {
-    genders: ['woman', 'man', 'non-binary'],
-    ages: ['Young Adult', 'Middle-aged', 'Elderly'],
-    ethnicities: ['Asian', 'Black', 'Hispanic', 'White', 'Other'],
-    socioeconomic: ['Low income', 'Middle income', 'High income']
-  },
-  contexts: [
-    'Healthcare',
-    'Finance',
-    'Education',
-    'Legal',
-    'Employment'
-  ],
-  relevanceOptions: ['Neutral', 'Relevant', 'Irrelevant'],
-  questionTypes: ['Open-Ended', 'True/False', 'Multiple Choice']
-};
-
-// Update SelectedParams type
-type SelectedParams = {
-  model: string;
-  domain: string;
-  primaryIssues: string[];
-  recommendations: string[];
-  irrelevantStatements: string[];
-  relevantStatements: string[];
-  templates: string[];
-  perspectives: string[];
-  demographics: {
-    genders: string[];
-    ages: string[];
-    ethnicities: string[];
-    socioeconomic: string[];
-  };
-  context: string;
-  relevanceOptions: string[];
-  questionTypes: string[];
-  iterations: number;
-};
-
-type PaginationState = {
-  [key: string]: {
-    page: number;
-    expanded: Set<number>;
-  }
-};
+import { PipelineParams, SelectedParams, PaginationState, ExtractionProgress, SavedAnalysis, DEFAULT_PIPELINE_PARAMS } from "@/app/lib/constants";
 
 const ITEMS_PER_PAGE = 5;
-
-// Update the extraction progress type
-type ExtractionProgress = {
-  processed: number;
-  total: number;
-  message?: string;
-  type: 'llm' | 'lda' | 'embeddings';
-};
-
 
 export default function Home() {
   const [pipelineParams] = useState<PipelineParams>(DEFAULT_PIPELINE_PARAMS);
@@ -590,205 +322,205 @@ export default function Home() {
   }, []);
 
   const extractConcepts = async (results: AnalysisResult[]) => {
-  let llmAbortController: AbortController | null = null;
-  let ldaAbortController: AbortController | null = null;
+    let llmAbortController: AbortController | null = null;
+    let ldaAbortController: AbortController | null = null;
 
-  try {
-    setIsExtracting({ llm: true, lda: true, embeddings: true });
+    try {
+      setIsExtracting({ llm: true, lda: true, embeddings: true });
 
-    // Track all extracted concepts for later use
-    const allExtractedConcepts: ExtractedConcepts[] = [];
+      // Track all extracted concepts for later use
+      const allExtractedConcepts: ExtractedConcepts[] = [];
 
-    // Start both extractions in parallel
-    llmAbortController = new AbortController();
-    ldaAbortController = new AbortController();
+      // Start both extractions in parallel
+      llmAbortController = new AbortController();
+      ldaAbortController = new AbortController();
 
-    // LLM Extraction
-    const llmPromise = fetch('/api/llm-extract-concepts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(results),
-      signal: llmAbortController.signal,
-    });
+      // LLM Extraction
+      const llmPromise = fetch('/api/llm-extract-concepts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(results),
+        signal: llmAbortController.signal,
+      });
 
-    // LDA Extraction
-    const ldaPromise = fetch('/api/lda-extract-concepts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(results),
-      signal: ldaAbortController.signal,
-    });
+      // LDA Extraction
+      const ldaPromise = fetch('/api/lda-extract-concepts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(results),
+        signal: ldaAbortController.signal,
+      });
 
-    const [llmResponse, ldaResponse] = await Promise.all([llmPromise, ldaPromise]);
+      const [llmResponse, ldaResponse] = await Promise.all([llmPromise, ldaPromise]);
 
-    if (!llmResponse.ok || !ldaResponse.ok) {
-      throw new Error('One or more extraction methods failed');
-    }
+      if (!llmResponse.ok || !ldaResponse.ok) {
+        throw new Error('One or more extraction methods failed');
+      }
 
-    const decoder = new TextDecoder();
+      const decoder = new TextDecoder();
 
-    // Update LLM progress handling
-    const llmReader = llmResponse.body?.getReader();
-    if (llmReader) {
-      try {
-        while (true) {
-          const { done, value } = await llmReader.read();
-          if (done) break;
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = JSON.parse(line.slice(5));
-              switch (data.type) {
-                case 'extraction_progress':
-                  setExtractionProgress(prev => ({
-                    ...prev,
-                    llm: {
-                      processed: data.progress.processed,
-                      total: data.progress.total,
-                      message: data.message,
-                      type: 'llm',
-                    },
-                  }));
-                  break;
-                case 'concepts': {
-                  const extractedConcepts = data.extractedConcepts as ExtractedConcepts;
-                  allExtractedConcepts.push(extractedConcepts);
+      // Update LLM progress handling
+      const llmReader = llmResponse.body?.getReader();
+      if (llmReader) {
+        try {
+          while (true) {
+            const { done, value } = await llmReader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = JSON.parse(line.slice(5));
+                switch (data.type) {
+                  case 'extraction_progress':
+                    setExtractionProgress(prev => ({
+                      ...prev,
+                      llm: {
+                        processed: data.progress.processed,
+                        total: data.progress.total,
+                        message: data.message,
+                        type: 'llm',
+                      },
+                    }));
+                    break;
+                  case 'concepts': {
+                    const extractedConcepts = data.extractedConcepts as ExtractedConcepts;
+                    allExtractedConcepts.push(extractedConcepts);
 
-                  setConceptData(prev => {
-                    const newConcepts = new Map(prev.concepts);
-                    const newDemographicDistributions = new Map(prev.demographicDistributions);
+                    setConceptData(prev => {
+                      const newConcepts = new Map(prev.concepts);
+                      const newDemographicDistributions = new Map(prev.demographicDistributions);
 
-                    const expectedDemographics = ['genders', 'ethnicities', 'ages', 'socioeconomic'];
+                      const expectedDemographics = ['genders', 'ethnicities', 'ages', 'socioeconomic'];
 
-                    extractedConcepts.concepts.forEach((concept: string) => {
-                      newConcepts.set(concept, (newConcepts.get(concept) || 0) + 1);
+                      extractedConcepts.concepts.forEach((concept: string) => {
+                        newConcepts.set(concept, (newConcepts.get(concept) || 0) + 1);
 
-                      expectedDemographics.forEach((demoCategory) => {
-                        let demoValue: string | undefined;
+                        expectedDemographics.forEach((demoCategory) => {
+                          let demoValue: string | undefined;
 
-                        if (extractedConcepts.demographics && extractedConcepts.demographics.length > 0) {
-                          const match = extractedConcepts.demographics.find(demo => demo.category === demoCategory);
-                          if (match) {
-                            demoValue = match.value;
+                          if (extractedConcepts.demographics && extractedConcepts.demographics.length > 0) {
+                            const match = extractedConcepts.demographics.find(demo => demo.category === demoCategory);
+                            if (match) {
+                              demoValue = match.value;
+                            }
+                          } else {
+                            demoValue = 'baseline';
                           }
-                        } else {
-                          demoValue = 'baseline';
-                        }
 
-                        if (demoValue) {
-                          if (!newDemographicDistributions.has(demoCategory)) {
-                            newDemographicDistributions.set(demoCategory, new Map());
+                          if (demoValue) {
+                            if (!newDemographicDistributions.has(demoCategory)) {
+                              newDemographicDistributions.set(demoCategory, new Map());
+                            }
+                            const categoryMap = newDemographicDistributions.get(demoCategory)!;
+
+                            if (!categoryMap.has(demoValue)) {
+                              categoryMap.set(demoValue, new Map());
+                            }
+                            const valueMap = categoryMap.get(demoValue)!;
+
+                            valueMap.set(concept, (valueMap.get(concept) || 0) + 1);
                           }
-                          const categoryMap = newDemographicDistributions.get(demoCategory)!;
-
-                          if (!categoryMap.has(demoValue)) {
-                            categoryMap.set(demoValue, new Map());
-                          }
-                          const valueMap = categoryMap.get(demoValue)!;
-
-                          valueMap.set(concept, (valueMap.get(concept) || 0) + 1);
-                        }
+                        });
                       });
+
+                      return {
+                        ...prev,
+                        concepts: newConcepts,
+                        demographicDistributions: newDemographicDistributions,
+                        rawResults: results,
+                        extractedConcepts: allExtractedConcepts,
+                      };
                     });
 
-                    return {
+                    break;
+                  }
+
+                  case 'clusters': {
+                    const clustersData = { ...data.clusters };
+                    clustersData.all = Array.isArray(clustersData.all)
+                      ? clustersData.all
+                      : Object.values(clustersData.all || {});
+
+                    setConceptData(prev => ({
                       ...prev,
-                      concepts: newConcepts,
-                      demographicDistributions: newDemographicDistributions,
+                      clusters: clustersData,
                       rawResults: results,
                       extractedConcepts: allExtractedConcepts,
-                    };
-                  });
-
-                  break;
-                }
-
-                case 'clusters': {
-                  const clustersData = { ...data.clusters };
-                  clustersData.all = Array.isArray(clustersData.all)
-                    ? clustersData.all
-                    : Object.values(clustersData.all || {});
-
-                  setConceptData(prev => ({
-                    ...prev,
-                    clusters: clustersData,
-                    rawResults: results,
-                    extractedConcepts: allExtractedConcepts,
-                  }));
-                  break;
+                    }));
+                    break;
+                  }
                 }
               }
             }
           }
+        } finally {
+          llmReader.releaseLock();
         }
-      } finally {
-        llmReader.releaseLock();
       }
-    }
 
-  // Update LDA progress handling
-  const ldaReader = ldaResponse.body?.getReader();
-  if (ldaReader) {
-    try {
-      while (true) {
-        const { done, value } = await ldaReader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(5));
-            switch (data.type) {
-              case 'extraction_progress':
-                setExtractionProgress(prev => ({
-                  ...prev,
-                  lda: {
-                    processed: data.progress.processed,
-                    total: data.progress.total,
-                    message: data.message,
-                    type: 'lda',
-                  },
-                }));
-                break;
-              case 'lda_concepts':
-                setLdaResults({
-                  topics: data.topics,
-                  distributions: data.distributions,
-                  demographicDistributions: data.demographic_distributions,
-                });
-                break;
-              case 'complete':
-                setIsExtracting(prev => ({ ...prev, lda: false }));
-                setExtractionProgress(prev => ({ ...prev, lda: undefined }));
-                break;
-              case 'error':
-                toast.error(`LDA Error: ${data.error}`);
-                setIsExtracting(prev => ({ ...prev, lda: false }));
-                break;
+      // Update LDA progress handling
+      const ldaReader = ldaResponse.body?.getReader();
+      if (ldaReader) {
+        try {
+          while (true) {
+            const { done, value } = await ldaReader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = JSON.parse(line.slice(5));
+                switch (data.type) {
+                  case 'extraction_progress':
+                    setExtractionProgress(prev => ({
+                      ...prev,
+                      lda: {
+                        processed: data.progress.processed,
+                        total: data.progress.total,
+                        message: data.message,
+                        type: 'lda',
+                      },
+                    }));
+                    break;
+                  case 'lda_concepts':
+                    setLdaResults({
+                      topics: data.topics,
+                      distributions: data.distributions,
+                      demographicDistributions: data.demographic_distributions,
+                    });
+                    break;
+                  case 'complete':
+                    setIsExtracting(prev => ({ ...prev, lda: false }));
+                    setExtractionProgress(prev => ({ ...prev, lda: undefined }));
+                    break;
+                  case 'error':
+                    toast.error(`LDA Error: ${data.error}`);
+                    setIsExtracting(prev => ({ ...prev, lda: false }));
+                    break;
+                }
+              }
             }
           }
+        } finally {
+          ldaReader.releaseLock();
         }
       }
-    } finally {
-      ldaReader.releaseLock();
-    }
-  }
 
-    // Add embeddings extraction
-    await extractEmbeddings(results);
-  } catch (error) {
-    console.error('Concept extraction failed:', error);
-    toast.error('Concept extraction failed', {
-      description: error instanceof Error ? error.message : 'Unknown error',
-    });
-  } finally {
-    setIsExtracting({ llm: false, lda: false, embeddings: false });
-    setExtractionProgress({});
-    if (llmAbortController) llmAbortController.abort();
-    if (ldaAbortController) ldaAbortController.abort();
-  }
-};
+      // Add embeddings extraction
+      await extractEmbeddings(results);
+    } catch (error) {
+      console.error('Concept extraction failed:', error);
+      toast.error('Concept extraction failed', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setIsExtracting({ llm: false, lda: false, embeddings: false });
+      setExtractionProgress({});
+      if (llmAbortController) llmAbortController.abort();
+      if (ldaAbortController) ldaAbortController.abort();
+    }
+  };
 
   // Update the extractEmbeddings function
   const extractEmbeddings = async (results: AnalysisResult[]) => {
@@ -869,33 +601,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* LDA Progress
-              {(isExtracting.lda || extractionProgress.lda) && (
-                <div className="space-y-2 p-4 bg-muted rounded-lg border">
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">
-                        {extractionProgress.lda?.message || 'Initializing LDA topic extraction...'}
-                      </span>
-                      {extractionProgress.lda && (
-                        <span className="font-medium">
-                          {extractionProgress.lda.processed}/{extractionProgress.lda.total} responses
-                        </span>
-                      )}
-                    </div>
-                    <div className="w-full bg-secondary rounded-full h-2">
-                      <div
-                        className="bg-primary rounded-full h-2 transition-all duration-300"
-                        style={{
-                          width: extractionProgress.lda
-                            ? `${(extractionProgress.lda.processed / extractionProgress.lda.total) * 100}%`
-                            : '0%'
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )} */}
             </div>
           )}
       </>
@@ -915,8 +620,8 @@ export default function Home() {
         analysisResults,
         conceptData.extractedConcepts,
         ldaResults,
-        embeddingsResults, 
-        conceptData.clusters?.all || [] 
+        embeddingsResults,
+        conceptData.clusters?.all || []
       );
 
       const response = await fetch('/api/calculate-agreement', {
@@ -926,7 +631,7 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        const errorMessage = await response.text(); 
+        const errorMessage = await response.text();
         console.error('Error response:', errorMessage);
         throw new Error('Failed to calculate agreement scores');
       }
@@ -952,83 +657,81 @@ export default function Home() {
 
   const handleDownloadResults = () => {
     try {
-        // Prepare the data
-        const allResults: AllResults = {
-            analysisResults,
-            conceptResults: {
-                llm: {
-                    concepts: Array.from(conceptData.concepts.entries()),
+      // Prepare the data
+      const allResults: AllResults = {
+        analysisResults,
+        conceptResults: {
+          llm: {
+            concepts: Array.from(conceptData.concepts.entries()),
 
-                    demographicDistributions: Array.from(conceptData.demographicDistributions.entries()).map(
-                      ([demo, categoryMap]) => [
-                        demo,
-                        new Map(
-                          Array.from(categoryMap.entries()).flatMap(([, valueMap]) =>
-                            Array.from(valueMap.entries()) 
-                          )
-                        )
-                      ]
-                    ),                    
+            demographicDistributions: Array.from(conceptData.demographicDistributions.entries()).map(
+              ([demo, categoryMap]) => [
+                demo,
+                new Map(
+                  Array.from(categoryMap.entries()).flatMap(([, valueMap]) =>
+                    Array.from(valueMap.entries())
+                  )
+                )
+              ]
+            ),
 
-                    extractedConcepts: conceptData.extractedConcepts || [],
-                    clusters: conceptData.clusters
-                },
-                lda: ldaResults,
-                embeddings: embeddingsResults
-            }
-        };
+            extractedConcepts: conceptData.extractedConcepts || [],
+            clusters: conceptData.clusters
+          },
+          lda: ldaResults,
+          embeddings: embeddingsResults
+        }
+      };
 
-        // Convert Maps to JSON-safe objects
-        const serializedResults = {
-            ...allResults,
-            conceptResults: {
-                ...allResults.conceptResults,
-                llm: {
-                    ...allResults.conceptResults.llm,
-                    demographicDistributions: allResults.conceptResults.llm.demographicDistributions.map(
-                        ([demo, conceptMap]) => [
-                            demo,
-                            Object.fromEntries(conceptMap) // Convert map to object for JSON
-                        ]
-                    )
-                }
-            }
-        };
+      // Convert Maps to JSON-safe objects
+      const serializedResults = {
+        ...allResults,
+        conceptResults: {
+          ...allResults.conceptResults,
+          llm: {
+            ...allResults.conceptResults.llm,
+            demographicDistributions: allResults.conceptResults.llm.demographicDistributions.map(
+              ([demo, conceptMap]) => [
+                demo,
+                Object.fromEntries(conceptMap) // Convert map to object for JSON
+              ]
+            )
+          }
+        }
+      };
 
-        // Create and trigger download
-        const blob = new Blob([JSON.stringify(serializedResults, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `concept-analysis-results-${new Date().toISOString()}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+      // Create and trigger download
+      const blob = new Blob([JSON.stringify(serializedResults, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `concept-analysis-results-${new Date().toISOString()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
-        toast.success('Results downloaded successfully');
+      toast.success('Results downloaded successfully');
     } catch (error) {
-        console.error('Error downloading results:', error);
-        toast.error('Failed to download results');
+      console.error('Error downloading results:', error);
+      toast.error('Failed to download results');
     }
-};
-
-
+  };
 
   const handleUploadResults = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-  
+
     setIsLoadingConceptsFile(true);
     toast.info('Processing uploaded concepts file...');
-  
+
     try {
       const text = await file.text();
       const allResults: AllResults = JSON.parse(text);
-  
+
       // Populate all the states
       setAnalysisResults(allResults.analysisResults);
-  
+
       // Reconstruct the Maps for concept distributions as a three-level Map.
       const demographicDistributionsMap = new Map(
         allResults.conceptResults.llm.demographicDistributions.map(
@@ -1045,23 +748,23 @@ export default function Home() {
           ]
         )
       );
-      
-  
+
+
       // Reconstruct the concepts Map
       const conceptsMap = new Map(allResults.conceptResults.llm.concepts);
 
-        setConceptData({
-          concepts: conceptsMap,
-          demographicDistributions: demographicDistributionsMap,
-          clusters: allResults.conceptResults.llm.clusters
-            ? {
-                all: allResults.conceptResults.llm.clusters.all, 
-                demographics: {} 
-              }
-            : undefined,
-          rawResults: allResults.analysisResults,
-          extractedConcepts: allResults.conceptResults.llm.extractedConcepts,
-        });
+      setConceptData({
+        concepts: conceptsMap,
+        demographicDistributions: demographicDistributionsMap,
+        clusters: allResults.conceptResults.llm.clusters
+          ? {
+            all: allResults.conceptResults.llm.clusters.all,
+            demographics: {}
+          }
+          : undefined,
+        rawResults: allResults.analysisResults,
+        extractedConcepts: allResults.conceptResults.llm.extractedConcepts,
+      });
 
     } catch (error) {
       console.error('File processing failed:', error);
@@ -1075,9 +778,6 @@ export default function Home() {
       }
     }
   }, []);
-  
-
-  // const [conceptClusters, setConceptClusters] = useState<ClusterData[]>([]);
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background">
@@ -1727,7 +1427,7 @@ export default function Home() {
                                     analysisResults,
                                     conceptData.extractedConcepts,
                                     ldaResults,
-                                    embeddingsResults, 
+                                    embeddingsResults,
                                     conceptData.clusters?.all || []
                                   );
                                   downloadCSV(csv, 'merged_analysis.csv');
@@ -1792,49 +1492,49 @@ export default function Home() {
                             </div>
                           </div>
                           <div className="hidden sm:block"> {/* Desktop-only view */}
-                          <ConceptVisualizations 
-                            conceptData={{
-                              concepts: conceptData.concepts,
-                              demographicDistributions: conceptData.demographicDistributions,
-                              clusters: {
-                                all: conceptData.clusters?.all?.map((cluster) => ({
-                                  id: cluster.id,
-                                  concepts: cluster.concepts,
-                                  frequency: cluster.frequency,
-                                  label: cluster.label,
-                                  total_frequency:
-                                    cluster.total_frequency !== undefined
-                                      ? cluster.total_frequency
-                                      : Array.isArray(cluster.frequency)
-                                        ? cluster.frequency.reduce((a, b) => a + b, 0)
-                                        : 0,
-                                })) ?? [],
-                                demographics: conceptData.clusters?.demographics
-                                  ? Object.fromEntries(
+                            <ConceptVisualizations
+                              conceptData={{
+                                concepts: conceptData.concepts,
+                                demographicDistributions: conceptData.demographicDistributions,
+                                clusters: {
+                                  all: conceptData.clusters?.all?.map((cluster) => ({
+                                    id: cluster.id,
+                                    concepts: cluster.concepts,
+                                    frequency: cluster.frequency,
+                                    label: cluster.label,
+                                    total_frequency:
+                                      cluster.total_frequency !== undefined
+                                        ? cluster.total_frequency
+                                        : Array.isArray(cluster.frequency)
+                                          ? cluster.frequency.reduce((a, b) => a + b, 0)
+                                          : 0,
+                                  })) ?? [],
+                                  demographics: conceptData.clusters?.demographics
+                                    ? Object.fromEntries(
                                       Object.entries(conceptData.clusters.demographics).map(([demo, clusters]) => [
                                         demo,
                                         Array.isArray(clusters)
                                           ? clusters.map((cluster) => ({
-                                              id: cluster.id,
-                                              concepts: cluster.concepts,
-                                              frequency: cluster.frequency,
-                                              label: cluster.label ? cluster.label : cluster.id.toString(),
-                                              total_frequency:
-                                                cluster.total_frequency !== undefined
-                                                  ? cluster.total_frequency
-                                                  : Array.isArray(cluster.frequency)
-                                                    ? cluster.frequency.reduce((a, b) => a + b, 0)
-                                                    : 0,
-                                            }))
+                                            id: cluster.id,
+                                            concepts: cluster.concepts,
+                                            frequency: cluster.frequency,
+                                            label: cluster.label ? cluster.label : cluster.id.toString(),
+                                            total_frequency:
+                                              cluster.total_frequency !== undefined
+                                                ? cluster.total_frequency
+                                                : Array.isArray(cluster.frequency)
+                                                  ? cluster.frequency.reduce((a, b) => a + b, 0)
+                                                  : 0,
+                                          }))
                                           : []
                                       ])
                                     )
-                                  : {},
-                              },
-                              rawResults: conceptData.rawResults,
-                              extractedConcepts: conceptData.extractedConcepts,
-                            }}
-                          />
+                                    : {},
+                                },
+                                rawResults: conceptData.rawResults,
+                                extractedConcepts: conceptData.extractedConcepts,
+                              }}
+                            />
 
                           </div>
                         </div>
@@ -1843,15 +1543,16 @@ export default function Home() {
 
                     {/* LDA Topics Tab - Mobile optimized */}
                     <TabsContent value="lda" className="flex-1 overflow-y-auto px-4 sm:px-6 min-h-0">
-                      {ldaResults && (
+                      {ldaResults ? (
                         <div className="space-y-6 pb-6">
                           <div className="flex justify-end">
                             <Button
                               onClick={() => {
                                 if (!analysisResults || !ldaResults) {
-                                  console.error("Missing required data for LDA CSV export");
+                                  console.error("❌ Missing required data for LDA CSV export");
                                   return;
                                 }
+                                console.log("✅ Generating LDA CSV...");
                                 const csv = createLDAExtractionCSV(analysisResults, ldaResults);
                                 downloadCSV(csv, "topic_mapping.csv");
                               }}
@@ -1864,45 +1565,59 @@ export default function Home() {
 
                           {/* Existing LDA Topics Display */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {ldaResults.topics.map((topic) => (
-                              <Card key={topic.topic_id} className="p-4">
-                                <h4 className="font-medium mb-2">Topic {topic.topic_id + 1}</h4>
-                                <div className="space-y-2">
-                                  <div className="flex flex-wrap gap-2">
-                                    {topic.words.map((word, idx) => (
-                                      <Badge key={word} variant="secondary" className="flex items-center gap-1">
-                                        <span>{word}</span>
-                                        <span className="text-xs opacity-70">
-                                          {(topic.weights[idx] * 100).toFixed(1)}%
-                                        </span>
-                                      </Badge>
-                                    ))}
+                            {ldaResults.topics?.length > 0 ? (
+                              ldaResults.topics.map((topic) => (
+                                <Card key={topic.topic_id} className="p-4">
+                                  <h4 className="font-medium mb-2">Topic {topic.topic_id + 1}</h4>
+                                  <div className="space-y-2">
+                                    <div className="flex flex-wrap gap-2">
+                                      {topic.words.map((word, idx) => (
+                                        <Badge key={word} variant="secondary" className="flex items-center gap-1">
+                                          <span>{word}</span>
+                                          <span className="text-xs opacity-70">
+                                            {(topic.weights[idx] * 100).toFixed(1)}%
+                                          </span>
+                                        </Badge>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              </Card>
-                            ))}
+                                </Card>
+                              ))
+                            ) : (
+                              <p className="text-gray-500">No LDA topics found.</p>
+                            )}
                           </div>
 
                           {/* LDA Visualization */}
-                          {ldaResults.demographicDistributions && (
+                          {ldaResults.demographicDistributions ? (
                             <div className="mt-6">
                               <h3 className="text-lg font-semibold mb-2">Demographic Topic Distributions</h3>
-                              <LDAVisualizations 
-                                ldaData={{
-                                  topics: ldaResults.topics,
-                                  demographicDistributions: Object.fromEntries(
-                                    Object.entries(ldaResults.demographicDistributions).map(([key, subgroupObj]) => [
-                                      key,
-                                      Object.fromEntries(
-                                        Object.entries(subgroupObj).map(([subgroupKey, arr]) => [subgroupKey, arr as number[]])
+                              {Object.keys(ldaResults.demographicDistributions).length > 0 ? (
+                                <>
+                                  <LDAVisualizations
+                                    ldaData={{
+                                      topics: ldaResults.topics,
+                                      demographicDistributions: Object.fromEntries(
+                                        Object.entries(ldaResults.demographicDistributions).map(([key, subgroupObj]) => [
+                                          key,
+                                          Object.fromEntries(
+                                            Object.entries(subgroupObj).map(([subgroupKey, arr]) => [subgroupKey, arr as number[]])
+                                          ),
+                                        ])
                                       ),
-                                    ])
-                                  ),
-                                }} 
-                              />
+                                    }}
+                                  />
+                                </>
+                              ) : (
+                                <p className="text-gray-500">No demographic distributions available.</p>
+                              )}
                             </div>
+                          ) : (
+                            <p className="text-gray-500"> No LDA demographic data found.</p>
                           )}
                         </div>
+                      ) : (
+                        <p className="text-gray-500"> No LDA results available.</p>
                       )}
                     </TabsContent>
 

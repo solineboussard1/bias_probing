@@ -193,20 +193,20 @@ export function AgreementScoreVisualizations({ agreementData }: AgreementScoreVi
     case 'cluster_topic':
       heatmapData = agreementData.mapping_data.contingency_tables.cluster_topic;
       heatmapTitle = 'Cluster-Topic Heatmap';
-      xLabel = 'Topics';   
-      yLabel = 'Clusters'; 
+      xLabel = 'Dominant Topic';   
+      yLabel = 'Concept Clusters'; 
       break;
     case 'cluster_pca':
       heatmapData = agreementData.mapping_data.contingency_tables.cluster_pca;
-      heatmapTitle = 'Cluster-PCA Heatmap';
-      xLabel = 'PCA Clusters';
-      yLabel = 'Clusters';
+      heatmapTitle = 'Cluster-Embedding Heatmap';
+      xLabel = 'Embeddings';
+      yLabel = 'Concept Clusters';
       break;
     case 'topic_pca':
       heatmapData = agreementData.mapping_data.contingency_tables.topic_pca;
-      heatmapTitle = 'Topic-PCA Heatmap';
-      xLabel = 'PCA Clusters';
-      yLabel = 'Topics';
+      heatmapTitle = 'Topic-Embeddings Heatmap';
+      xLabel = 'Embeddings Cluster';
+      yLabel = 'Dominant Topic';
       break;
     default:
       heatmapData = agreementData.mapping_data.contingency_tables.cluster_topic;
@@ -253,7 +253,7 @@ export function AgreementScoreVisualizations({ agreementData }: AgreementScoreVi
           }`}
           onClick={() => setHeatmapType('cluster_pca')}
         >
-          Cluster-PCA
+          Cluster-Embedding
         </button>
         <button
           className={`px-3 py-1 rounded ${
@@ -261,7 +261,7 @@ export function AgreementScoreVisualizations({ agreementData }: AgreementScoreVi
           }`}
           onClick={() => setHeatmapType('topic_pca')}
         >
-          Topic-PCA
+          Topic-Embedding
         </button>
       </div>
 

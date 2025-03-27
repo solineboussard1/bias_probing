@@ -21,7 +21,7 @@ def normalize_concept(concept: str) -> str:
     lemmas = [lemmatizer.lemmatize(t) for t in tokens]
     return " ".join(lemmas)
 
-def process_clustering(concept_frequencies, eps=0.4, min_samples=1, min_freq_threshold=4):
+def process_clustering(concept_frequencies, eps=0.15, min_samples=1, min_freq_threshold=3):
     if not concept_frequencies:
         return [], {}
 

@@ -27,7 +27,7 @@ def clean_text(text: str) -> str:
     tokens = [token for token in tokens if token.isalpha() and token not in stop_words and len(token) > 2]
     return ' '.join(tokens)
 
-def extract_topics(responses: List[Dict[str, Any]], n_topics: int = 5) -> Dict:
+def extract_topics(responses: List[Dict[str, Any]], n_topics: int = 12) -> Dict:
     try:
         print("Initializing NLTK...", file=sys.stderr)
         initialize_nltk()
@@ -73,11 +73,36 @@ def extract_topics(responses: List[Dict[str, Any]], n_topics: int = 5) -> Dict:
                 'weights': topic_weights
             })
 
-        print("Extracted topics successfully!", file=sys.stderr)
+
+        demo_groups = {} 
+        for i, response in enumerate(responses):
+            if 'demographics' in response and isinstance(response['demographics'], list):
+                for demo in response['demographics']:
+                    category = demo.get('category', 'unknown')
+                    subgroup = demo.get('value', 'baseline')
+                    if category not in demo_groups:
+                        demo_groups[category] = {}
+                    if subgroup not in demo_groups[category]:
+                        demo_groups[category][subgroup] = {'sum': np.zeros(n_topics), 'count': 0}
+                    demo_groups[category][subgroup]['sum'] += doc_topics[i]
+                    demo_groups[category][subgroup]['count'] += 1
+
+        demographicDistributions = {}
+        for category, subgroups in demo_groups.items():
+            demographicDistributions[category] = {}
+            for subgroup, data in subgroups.items():
+                if data['count'] > 0:
+                    avg_distribution = (data['sum'] / data['count']).tolist()
+                else:
+                    avg_distribution = [0.0] * n_topics
+                demographicDistributions[category][subgroup] = avg_distribution
+
+        print("Extracted topics and computed demographic distributions successfully!", file=sys.stderr)
 
         return {
             'topics': topics,
-            'distributions': doc_topics.tolist()
+            'distributions': doc_topics.tolist(),
+            'demographicDistributions': demographicDistributions
         }
 
     except Exception as e:
@@ -85,9 +110,9 @@ def extract_topics(responses: List[Dict[str, Any]], n_topics: int = 5) -> Dict:
         return {
             'error': str(e),
             'topics': [],
-            'distributions': []
+            'distributions': [],
+            'demographicDistributions': {}
         }
-
 
 if __name__ == "__main__":
     try:
@@ -97,7 +122,7 @@ if __name__ == "__main__":
                 'error': 'Input must be a list of response objects',
                 'topics': [],
                 'distributions': [],
-                'demographic_distributions': {}
+                'demographicDistributions': {}
             }))
             sys.exit(1)
             
@@ -109,7 +134,7 @@ if __name__ == "__main__":
             'error': f'Invalid JSON input: {str(e)}',
             'topics': [],
             'distributions': [],
-            'demographic_distributions': {}
+            'demographicDistributions': {}
         }))
         sys.exit(1)
     except Exception as e:
@@ -117,6 +142,6 @@ if __name__ == "__main__":
             'error': f'Script error: {str(e)}',
             'topics': [],
             'distributions': [],
-            'demographic_distributions': {}
+            'demographicDistributions': {}
         }))
         sys.exit(1)

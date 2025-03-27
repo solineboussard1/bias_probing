@@ -50,7 +50,6 @@ def get_embeddings(texts: List[str]) -> np.ndarray:
         embeddings = np.array(response.json())
         logging.info(f"Initial embeddings shape: {embeddings.shape}")
         
-        # If the embeddings are token-level (3D array), pool (mean) over tokens to get a single embedding per text
         if embeddings.ndim == 3:
             embeddings = np.mean(embeddings, axis=1)
             logging.info(f"After pooling, embeddings shape: {embeddings.shape}")
@@ -93,7 +92,6 @@ def extract_concepts_with_embeddings(input_data: List[Dict[str, Any]]) -> List[D
         if len(responses) < 2:
             raise Exception("Need at least 2 responses for clustering")
         
-        # Get embeddings, PCA, and clustering as before...
         embeddings = get_embeddings(responses)
         
         n_components = min(embeddings.shape[1], len(responses) - 1, 2)
@@ -112,10 +110,10 @@ def extract_concepts_with_embeddings(input_data: List[Dict[str, Any]]) -> List[D
         print(f"PCA explained variance ratios: {explained_variance}", file=sys.stderr)
         
         # Find the best number of clusters using Silhouette Score
-        best_n_clusters = 2
+        n_clusters = 3
         best_score = -1
 
-        for k in range(2, min(len(responses), 10)):  # Try clusters from 2 to 10 (or response count)
+        for k in range(3, min(len(responses), 15)):  
             kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
             labels = kmeans.fit_predict(embeddings)
             score = silhouette_score(embeddings, labels)

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";  // Adjust path if needed
+import { Card, CardContent } from "@/components/ui/card";
 import Chart from "chart.js/auto";
 
 type LDAVisualizationProps = {

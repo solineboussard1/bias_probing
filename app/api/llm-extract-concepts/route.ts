@@ -30,8 +30,7 @@ async function runConceptClustering(
     });
 
     pythonProcess.on('close', (code) => {
-      console.log("Python process exited with code:", code);
-      console.log("Python stdout:", outputData);
+      // console.log("Python stdout:", outputData);
       console.log("Python stderr:", errorData);
       if (code !== 0) {
         console.error('Python clustering error:', errorData);
@@ -67,7 +66,7 @@ async function runConceptClustering(
       )
     };
 
-    console.log("Sending clustering input data:", JSON.stringify(inputData, null, 2));
+    // console.log("Sending clustering input data:", JSON.stringify(inputData, null, 2));
 
     pythonProcess.stdin.write(JSON.stringify(inputData));
     pythonProcess.stdin.end();
@@ -185,10 +184,6 @@ export async function POST(req: Request): Promise<Response> {
           allConceptFrequencies.set(concept, (allConceptFrequencies.get(concept) || 0) + 1);
         });
 
-        // Debug logging.
-        console.log("All extracted concepts:", allConcepts);
-        console.log("Subgroup concepts map:", JSON.stringify(Array.from(subgroupConcepts.entries()), null, 2));
-
         // Call runConceptClustering once with both overall and subgroup data.
         const clusters = await runConceptClustering(allConceptFrequencies, subgroupConcepts);
 
@@ -271,7 +266,7 @@ Response text: "${sanitizedText}"
 Return ONLY the list in [item1, item2, item3] format, with clear, concise concepts in plain English.`;
 
   try {
-    console.log("Calling OpenAI API for text:", sanitizedText.substring(0, 50) + "...");
+
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -284,8 +279,6 @@ Return ONLY the list in [item1, item2, item3] format, with clear, concise concep
       temperature: 0.3,
     });
 
-    console.log("Raw completion:", completion.choices[0].message.content);
-
     const content = completion.choices[0].message.content || '';
     const match = content.match(/\[(.*?)\]/);
     if (match) {
@@ -293,7 +286,6 @@ Return ONLY the list in [item1, item2, item3] format, with clear, concise concep
         .split(',')
         .map(concept => concept.trim())
         .filter(concept => concept.length > 0 && concept !== '...');
-      console.log("Processed concepts:", concepts);
       return concepts;
     }
 

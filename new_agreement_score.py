@@ -1,11 +1,11 @@
 import pandas as pd
 import numpy as np
-from scipy.optimize import linear_sum_assignment
 import json
 import sys
 import os
 import traceback
-import math  # Added to check for Python float NaN
+import math
+from scipy.optimize import linear_sum_assignment
 
 class NumpyJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -17,12 +17,20 @@ class NumpyJSONEncoder(json.JSONEncoder):
             return None
         return super().default(obj)
 
-def calculate_agreement(cluster_labels, topic_labels, pca_cluster_labels):
-    n_clusters = len(np.unique(cluster_labels))
-    n_topics = len(np.unique(topic_labels))
-    n_pca_clusters = len(np.unique(pca_cluster_labels))
+def calculate_raw_agreement(confusion_matrix):
+    # Find the optimal matching via Hungarian algorithm.
+    row_ind, col_ind = linear_sum_assignment(-confusion_matrix)
+    total_matches = confusion_matrix[row_ind, col_ind].sum()
+    accuracy = total_matches / np.sum(confusion_matrix)
+    return accuracy, row_ind, col_ind
 
-    # Create confusion matrices
+def calculate_contingency_matrices(cluster_labels, topic_labels, pca_cluster_labels,
+                                   concept_categories, topic_categories, embedding_categories):
+    # Use the original (non–0-indexed) labels preserved as categories for visualization.
+    n_clusters = len(concept_categories)
+    n_topics = len(topic_categories)
+    n_pca_clusters = len(embedding_categories)
+
     confusion_matrix_cluster_topic = np.zeros((n_clusters, n_topics))
     confusion_matrix_cluster_pca = np.zeros((n_clusters, n_pca_clusters))
     confusion_matrix_topic_pca = np.zeros((n_topics, n_pca_clusters))
@@ -32,30 +40,41 @@ def calculate_agreement(cluster_labels, topic_labels, pca_cluster_labels):
         confusion_matrix_cluster_pca[cluster_labels[i], pca_cluster_labels[i]] += 1
         confusion_matrix_topic_pca[topic_labels[i], pca_cluster_labels[i]] += 1
 
-    # Use Hungarian algorithm to find optimal matchings
-    row_ind_ct, col_ind_ct = linear_sum_assignment(-confusion_matrix_cluster_topic)
-    row_ind_cp, col_ind_cp = linear_sum_assignment(-confusion_matrix_cluster_pca)
-    row_ind_tp, col_ind_tp = linear_sum_assignment(-confusion_matrix_topic_pca)
+    # Calculate raw agreement accuracy for each pair.
+    accuracy_ct, row_ind_ct, col_ind_ct = calculate_raw_agreement(confusion_matrix_cluster_topic)
+    accuracy_cp, row_ind_cp, col_ind_cp = calculate_raw_agreement(confusion_matrix_cluster_pca)
+    accuracy_tp, row_ind_tp, col_ind_tp = calculate_raw_agreement(confusion_matrix_topic_pca)
 
-    # Calculate agreement scores
-    total_matches_ct = confusion_matrix_cluster_topic[row_ind_ct, col_ind_ct].sum()
-    total_matches_cp = confusion_matrix_cluster_pca[row_ind_cp, col_ind_cp].sum()
-    total_matches_tp = confusion_matrix_topic_pca[row_ind_tp, col_ind_tp].sum()
+    # Create mapping dictionaries.
+    mapping_ct = {int(r): int(c) for r, c in zip(row_ind_ct, col_ind_ct)}
+    mapping_cp = {int(r): int(c) for r, c in zip(row_ind_cp, col_ind_cp)}
+    mapping_tp = {int(r): int(c) for r, c in zip(row_ind_tp, col_ind_tp)}
 
-    agreement_score_ct = total_matches_ct / len(cluster_labels) if len(cluster_labels) > 0 else 0
-    agreement_score_cp = total_matches_cp / len(cluster_labels) if len(cluster_labels) > 0 else 0
-    agreement_score_tp = total_matches_tp / len(cluster_labels) if len(cluster_labels) > 0 else 0
+    def format_contingency_table(matrix, row_labels, col_labels):
+        return {
+            "table": matrix.tolist(),
+            "rowLabels": row_labels,
+            "colLabels": col_labels
+        }
 
-    return (
-        (agreement_score_ct, agreement_score_cp, agreement_score_tp),
-        (confusion_matrix_cluster_topic, confusion_matrix_cluster_pca, confusion_matrix_topic_pca),
-        (row_ind_ct, col_ind_ct),
-        (row_ind_cp, col_ind_cp),
-        (row_ind_tp, col_ind_tp)
-    )
+    contingency_tables = {
+        'cluster_topic': format_contingency_table(confusion_matrix_cluster_topic, concept_categories, topic_categories),
+        'cluster_pca': format_contingency_table(confusion_matrix_cluster_pca, concept_categories, embedding_categories),
+        'topic_pca': format_contingency_table(confusion_matrix_topic_pca, topic_categories, embedding_categories)
+    }
 
-def create_mapping_dict(row_ind, col_ind):
-    return {int(k): int(v) for k, v in zip(row_ind, col_ind)}
+    mapping_data = {
+        'cluster_topic_mapping': mapping_ct,
+        'cluster_pca_mapping': mapping_cp,
+        'topic_pca_mapping': mapping_tp,
+        'contingency_tables': contingency_tables,
+        'raw_agreement': {
+            'cluster_topic': accuracy_ct,
+            'cluster_embedding': accuracy_cp,
+            'topic_embedding': accuracy_tp
+        }
+    }
+    return mapping_data
 
 def check_agreement(row, cluster_to_topic, cluster_to_pca, topic_to_pca):
     cluster_label = row['Concept_Cluster']
@@ -71,17 +90,13 @@ def check_agreement(row, cluster_to_topic, cluster_to_pca, topic_to_pca):
 def calculate_agreement_scores():
     try:
         csv_path = os.path.join(os.getcwd(), 'public', 'merged_analysis.csv')
-        print(f"Looking for CSV at: {csv_path}", file=sys.stderr)
+        # print(f"Looking for CSV at: {csv_path}", file=sys.stderr)
         
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"CSV file not found at {csv_path}")
             
         grouped_df = pd.read_csv(csv_path)
-        print(f"Successfully read CSV with {len(grouped_df)} rows", file=sys.stderr)
-        print(f"CSV columns: {grouped_df.columns.tolist()}", file=sys.stderr)
-
-        print("First 10 rows of CSV:", file=sys.stderr)
-        print(grouped_df.head(10), file=sys.stderr)
+        # print(f"Successfully read CSV with {len(grouped_df)} rows", file=sys.stderr)
         print("Unique values in Concept_Cluster:", grouped_df['Concept_Cluster'].unique(), file=sys.stderr)
         print("Unique values in Dominant_Topic:", grouped_df['Dominant_Topic'].unique(), file=sys.stderr)
         print("Unique values in Embeddings_Cluster:", grouped_df['Embeddings_Cluster'].unique(), file=sys.stderr)
@@ -89,64 +104,48 @@ def calculate_agreement_scores():
         # Drop rows with missing critical labels.
         grouped_df = grouped_df.dropna(subset=['Concept_Cluster', 'Dominant_Topic', 'Embeddings_Cluster'])
 
-        # Convert labels to numeric codes
-        grouped_df['Concept_Cluster'] = pd.Categorical(grouped_df['Concept_Cluster']).codes
-        grouped_df['Dominant_Topic'] = pd.Categorical(grouped_df['Dominant_Topic'].astype(str)).codes
-        grouped_df['Embeddings_Cluster'] = pd.Categorical(grouped_df['Embeddings_Cluster'].astype(str)).codes
+        # Preserve original categories (as strings) for heatmap labels.
+        concept_categories = pd.Categorical(grouped_df['Concept_Cluster']).categories.tolist()
+        topic_categories = pd.Categorical(grouped_df['Dominant_Topic'].astype(str)).categories.tolist()
+        embedding_categories = pd.Categorical(grouped_df['Embeddings_Cluster'].astype(str)).categories.tolist()
         
-        # Calculate agreement scores and get mappings
-        agreement_scores, confusion_matrices, cluster_topic_mapping, cluster_pca_mapping, topic_pca_mapping = calculate_agreement(
-            grouped_df['Concept_Cluster'].values,
-            grouped_df['Dominant_Topic'].values,
-            grouped_df['Embeddings_Cluster'].values
-        )
-
-        # Create mapping dictionaries with explicit int conversion
-        cluster_to_topic = {int(cluster): int(topic) for cluster, topic in zip(cluster_topic_mapping[0], cluster_topic_mapping[1])}
-        cluster_to_pca = {int(cluster): int(pca) for cluster, pca in zip(cluster_pca_mapping[0], cluster_pca_mapping[1])}
-        topic_to_pca = {int(topic): int(pca) for topic, pca in zip(topic_pca_mapping[0], topic_pca_mapping[1])}
-
-        # Calculate agreement for each row
+        # Convert labels to numeric codes based on the preserved order.
+        grouped_df['Concept_Cluster'] = pd.Categorical(grouped_df['Concept_Cluster'], categories=concept_categories).codes
+        grouped_df['Dominant_Topic'] = pd.Categorical(grouped_df['Dominant_Topic'].astype(str), categories=topic_categories).codes
+        grouped_df['Embeddings_Cluster'] = pd.Categorical(grouped_df['Embeddings_Cluster'].astype(str), categories=embedding_categories).codes
+        
+        # Prepare label arrays.
+        cluster_labels = grouped_df['Concept_Cluster'].values
+        topic_labels = grouped_df['Dominant_Topic'].values
+        pca_cluster_labels = grouped_df['Embeddings_Cluster'].values
+        
+        # Compute raw agreement scores using Hungarian matching.
+        mapping_data = calculate_contingency_matrices(cluster_labels, topic_labels, pca_cluster_labels,
+                                                      concept_categories, topic_categories, embedding_categories)
+        # Use the raw agreement accuracies from mapping_data.
+        agreement_scores = mapping_data['raw_agreement']
+        
+        # Compute per-row binary agreements for visualization.
+        cluster_to_topic = mapping_data['cluster_topic_mapping']
+        cluster_to_pca = mapping_data['cluster_pca_mapping']
+        topic_to_pca = mapping_data['topic_pca_mapping']
+        
         visualization_data = []
         for _, row in grouped_df.iterrows():
-            cluster_topic_agree, cluster_pca_agree, topic_pca_agree = check_agreement(
-                row, cluster_to_topic, cluster_to_pca, topic_to_pca
-            )
-            
+            ct_agree, cp_agree, tp_agree = check_agreement(row, cluster_to_topic, cluster_to_pca, topic_to_pca)
             visualization_data.append({
                 'pca_one': float(row['PCA_One']) if pd.notnull(row['PCA_One']) else 0.0,
                 'pca_two': float(row['PCA_Two']) if pd.notnull(row['PCA_Two']) else 0.0,
-                'cluster_topic_agree': cluster_topic_agree,
-                'cluster_pca_agree': cluster_pca_agree,
-                'topic_pca_agree': topic_pca_agree
+                'cluster_topic_agree': ct_agree,
+                'cluster_pca_agree': cp_agree,
+                'topic_pca_agree': tp_agree
             })
 
-        def format_contingency_table(matrix):
-            return {
-                "table": matrix.tolist(),
-                "rowLabels": [str(i) for i in range(matrix.shape[0])],
-                "colLabels": [str(i) for i in range(matrix.shape[1])]
-            }
-
         results = {
-            'agreement_scores': {
-                'cluster_topic': float(agreement_scores[0]), 
-                'cluster_embedding': float(agreement_scores[1]),
-                'topic_embedding': float(agreement_scores[2])
-            },
+            'agreement_scores': agreement_scores,
             'visualization_data': visualization_data,
-            'mapping_data': {
-                'cluster_topic_mapping': cluster_to_topic,
-                'cluster_pca_mapping': cluster_to_pca,
-                'topic_pca_mapping': topic_to_pca,
-                'contingency_tables': {
-                    'cluster_topic': format_contingency_table(confusion_matrices[0]),
-                    'cluster_pca': format_contingency_table(confusion_matrices[1]),
-                    'topic_pca': format_contingency_table(confusion_matrices[2])
-                }
-            }
+            'mapping_data': mapping_data
         }
-
         return results
 
     except Exception as e:
@@ -170,3 +169,4 @@ if __name__ == "__main__":
         }
         print(json.dumps(error_details), file=sys.stderr)
         sys.exit(1)
+
