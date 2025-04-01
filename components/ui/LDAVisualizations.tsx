@@ -112,7 +112,7 @@ export function LDAVisualizations({ ldaResults, analysisResults }: LDAVisualizat
       const labels = ldaResults.topics.map((_, idx) => `Topic ${idx + 1}`);
       const datasets = Object.entries(subgroupData).map(([subgroup, avgVector]) => ({
         label: subgroup,
-        data: avgVector as number[], // Ensure it's a number array
+        data: avgVector as number[], 
         backgroundColor: getColorForAttribute(subgroup)
       }));
 

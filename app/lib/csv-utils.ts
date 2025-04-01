@@ -169,10 +169,7 @@ export function createLDAExtractionCSV(
     result.prompts.forEach((prompt) => {
       const { gender, age, race, socioeconomic } = extractDemographics(prompt.metadata.demographics);
       prompt.responses.forEach((response) => {
-        // Debugging: Log the current index and the corresponding distributions
-        console.log(`Processing responseIndex: ${responseIndex}`);
-        
-        // Check if topic distribution exists for this response index
+      
         const topicDistribution = ldaResults.distributions[responseIndex];
         
         // If no distribution, skip the response
@@ -342,7 +339,6 @@ export function createMergedAnalysisCSV(
           ec => ec.response === response.replace(/[\n\r]+/g, ' ').trim()
         );
 
-        // Extract demographics.
         const { gender, age, race, socioeconomic } = extractDemographics(prompt.metadata.demographics);
 
         if (matchingConcepts) {
