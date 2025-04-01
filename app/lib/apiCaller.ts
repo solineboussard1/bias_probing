@@ -1,15 +1,10 @@
 import OpenAI from 'openai';
 import fetch from 'node-fetch';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "",
-});
-
 interface ModelSettings {
   provider: 'openai' | 'anthropic' | 'huggingface';
   modelName: string;
   endpoint: string;
-  apiKey: string;
 }
 
 const modelConfig: Record<string, ModelSettings> = {
@@ -17,47 +12,57 @@ const modelConfig: Record<string, ModelSettings> = {
     provider: 'openai',
     modelName: 'gpt-4',
     endpoint: 'https://api.openai.com/v1/chat/completions',
-    apiKey: process.env.OPENAI_API_KEY || "",
   },
   'gpt-4o-mini': {
     provider: 'openai',
     modelName: 'gpt-3.5-turbo',
     endpoint: 'https://api.openai.com/v1/chat/completions',
-    apiKey: process.env.OPENAI_API_KEY || "",
   },
   'gpt-o1-mini': {
     provider: 'openai',
     modelName: 'gpt-o1-mini',
     endpoint: 'https://api.openai.com/v1/chat/completions',
-    apiKey: process.env.OPENAI_API_KEY || "",
   },
   'claude-3-5-sonnet': {
     provider: 'anthropic',
     modelName: 'claude-3.5-sonnet',
     endpoint: 'https://api.anthropic.com/v1/complete',
-    apiKey: process.env.ANTHROPIC_API_KEY || "",
   },
   'mistral-7b': {
     provider: 'huggingface',
     modelName: 'mistralai/Mistral-7B-Instruct',
     endpoint: 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct',
-    apiKey: process.env.HUGGINGFACE_API_KEY || "",
   },
   'llama-3-8b': {
     provider: 'huggingface',
     modelName: 'meta-llama/Llama-3-8B',
     endpoint: 'https://api-inference.huggingface.co/models/meta-llama/Llama-3-8B',
-    apiKey: process.env.HUGGINGFACE_API_KEY || "",
-  },  
+  },
 };
 
 export type ModelKey = keyof typeof modelConfig;
 
-export async function retrieveSingleCall(prompt: string, selectedModel: ModelKey): Promise<string> {
+export async function retrieveSingleCall(
+  prompt: string,
+  selectedModel: ModelKey,
+  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>
+): Promise<string> {
   const config = modelConfig[selectedModel];
-  if (!config) throw new Error(`Model ${selectedModel} is not configured.`);
+  if (!config) {
+    throw new Error(`Model ${selectedModel} is not configured.`);
+  }
+
+  // Get the API key for the provider
+  const userApiKey = userApiKeys[config.provider];
+  if (!userApiKey) {
+    throw new Error(`API key for provider ${config.provider} is missing.`);
+  }
 
   if (config.provider === 'openai') {
+    // Create a new OpenAI instance with the user-supplied API key.
+    const openai = new OpenAI({
+      apiKey: userApiKey,
+    });
     const response = await openai.chat.completions.create({
       model: config.modelName,
       messages: [
@@ -71,14 +76,12 @@ export async function retrieveSingleCall(prompt: string, selectedModel: ModelKey
       throw new Error("No response from OpenAI.");
     }
     return response.choices[0].message.content;
-
   } else if (config.provider === 'anthropic') {
-
     const response = await fetch(config.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
+        'Authorization': `Bearer ${userApiKey}`,
       },
       body: JSON.stringify({
         prompt: prompt,
@@ -92,13 +95,11 @@ export async function retrieveSingleCall(prompt: string, selectedModel: ModelKey
     }
     const data = await response.json();
     return data.completion || "No response from Anthropic.";
-
   } else if (config.provider === 'huggingface') {
-
     const response = await fetch(config.endpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
+        'Authorization': `Bearer ${userApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ inputs: prompt }),
@@ -108,9 +109,7 @@ export async function retrieveSingleCall(prompt: string, selectedModel: ModelKey
       throw new Error(`Hugging Face API error: ${errorData.error || response.statusText}`);
     }
     const data = await response.json();
-
     return data[0]?.generated_text || "No response from Hugging Face.";
-
   } else {
     throw new Error(`Unsupported provider: ${config.provider}`);
   }

@@ -6,8 +6,10 @@ import { AnalysisResult } from '@/app/types/pipeline';
 export async function POST(req: Request): Promise<Response> {
   try {
     console.log('Starting embeddings extraction...');
-    const results: AnalysisResult[] = await req.json();
-    
+    const { results, userApiKeys }: { results: AnalysisResult[], userApiKeys: { huggingface: string } } = await req.json();
+    if (!userApiKeys || !userApiKeys.huggingface) {
+      throw new Error("Hugging Face API key is missing");
+    }
     // Extract all responses from the results,
     const responses: { response: string; demographics: string[] }[] = [];
     results.forEach(result => {
@@ -20,10 +22,14 @@ export async function POST(req: Request): Promise<Response> {
         });
       });
     });
+    const inputData = {
+      results: responses,
+      userApiKeys: userApiKeys
+    };
     
     // Run Python script
     const pythonScript = path.join(process.cwd(), 'app', 'python', 'embeddings_extractor.py');
-    
+
     const pythonResult = await new Promise<Record<string, unknown>>((resolve, reject) => {
       const pythonProcess = spawn('python', [pythonScript]);
       let outputData = '';
@@ -62,8 +68,7 @@ export async function POST(req: Request): Promise<Response> {
         }
       });
 
-      // Send the input data
-      const inputJson = JSON.stringify(responses);
+      const inputJson = JSON.stringify(inputData);
       pythonProcess.stdin.write(inputJson);
       pythonProcess.stdin.end();
     });

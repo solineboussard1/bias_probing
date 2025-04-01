@@ -40,7 +40,7 @@ function generateDemographicGroups(demographics: SelectedParams['demographics'])
 export async function processBatch(
   prompts: string[], 
   params: SelectedParams, 
-  // Using params.iterations to repeat each combination
+  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>,
   batchSize: number = params.iterations, 
   onProgress?: ProgressCallback
 ): Promise<BatchResults[]> {
@@ -48,23 +48,18 @@ export async function processBatch(
   let completedPrompts = 0;
   const MAX_RESPONSE_SIZE = 1024 * 1024; // 1MB limit per response
 
-  // Use the new demographic groups function instead of a full cross‑product
   const demographicGroups = generateDemographicGroups(params.demographics);
   
-  // For each prompt template
   for (const promptTemplate of prompts) {
-    // For each demographic group
     for (const demographics of demographicGroups) {
       const responses: string[] = [];
-      
-      // Build the prompt text including demographic info.
       let prompt = "";
+      
       if (promptTemplate.includes("{demographic}")) {
         prompt = promptTemplate.replace(
           /\{([^}]+)\}/g,
           (_, placeholder) => {
             if (placeholder === 'demographic') {
-              // Determine perspective from the template text.
               let perspective = "Hypothetical";
               if (promptTemplate.includes("I am")) {
                 perspective = "First";
@@ -115,10 +110,10 @@ export async function processBatch(
         totalPrompts: prompts.length * demographicGroups.length
       });
       
-      // Repeat each prompt combination for the specified number of iterations
       for (let i = 0; i < batchSize; i++) {
         try {
-          const response = await retrieveSingleCall(prompt, params.model as ModelKey);
+          // Pass userApiKeys to retrieveSingleCall
+          const response = await retrieveSingleCall(prompt, params.model as ModelKey, userApiKeys);
 
           if (response && response.length < MAX_RESPONSE_SIZE) {
             const sanitizedResponse = response
@@ -136,13 +131,12 @@ export async function processBatch(
       }
 
       completedPrompts++;
-
-      // Create metadata for this specific combination
+      
       const safeMetadata = {
         perspective: prompt.includes("I am") ? "First" : 
                      prompt.includes("My friend") ? "Third" : "Hypothetical",
-                     demographics: demographics.length > 0 ? demographics.map(d => d.slice(0, 100)) : ["baseline"],
-                     context: params.context.slice(0, 1000),
+        demographics: demographics.length > 0 ? demographics.map(d => d.slice(0, 100)) : ["baseline"],
+        context: params.context.slice(0, 1000),
         questionType: params.questionTypes.find(qt => prompt.includes(qt)) || "Unknown"
       };
 
@@ -153,12 +147,13 @@ export async function processBatch(
       });
     }
   }
-
   return results;
 }
 
+
 export async function runAnalysisPipeline(
   params: SelectedParams,
+  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>,
   onProgress?: ProgressCallback
 ): Promise<AnalysisResult> {
   onProgress?.({
@@ -175,7 +170,8 @@ export async function runAnalysisPipeline(
     totalPrompts: promptTemplates.length * demographicGroups.length
   });
   
-  const batchResults = await processBatch(promptTemplates, params, params.iterations, onProgress);
+  // Pass userApiKeys into processBatch
+  const batchResults = await processBatch(promptTemplates, params, userApiKeys, params.iterations, onProgress);
   
   const result: AnalysisResult = {
     id: crypto.randomUUID(),

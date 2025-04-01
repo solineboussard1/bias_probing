@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Minimize2, BarChart3, Save, Slice, Download, ChevronDown, ChevronUp, Upload, } from "lucide-react";
+import { Minimize2, BarChart3, Eye, EyeOff, Save, Slice, Download, ChevronDown, ChevronUp, Upload, } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,12 @@ import { createLDAExtractionCSV, downloadCSV, createMergedAnalysisCSV } from "@/
 import { PipelineParams, SelectedParams, PaginationState, ExtractionProgress, SavedAnalysis, DEFAULT_PIPELINE_PARAMS } from "@/app/lib/constants";
 
 const ITEMS_PER_PAGE = 5;
+
+const API_KEYS = [
+  { provider: "openai" },
+  { provider: "anthropic" },
+  { provider: "huggingface" }
+];
 
 export default function Home() {
   const [pipelineParams] = useState<PipelineParams>(DEFAULT_PIPELINE_PARAMS);
@@ -60,6 +66,18 @@ export default function Home() {
     completedPrompts?: number;
     message?: string;
   } | null>(null);
+  const [showKeys, setShowKeys] = useState(false);
+  const [apiKeys, setApiKeys] = useState(
+    API_KEYS.map((p) => ({ provider: p.provider, key: "" }))
+  );
+
+  const updateApiKey = (provider: string, newKey: string) => {
+    setApiKeys((prev) =>
+      prev.map((api) =>
+        api.provider === provider ? { ...api, key: newKey } : api
+      )
+    );
+  };
 
   // Add new state for section visibility
   const [configSectionsExpanded, setConfigSectionsExpanded] = useState({
@@ -148,47 +166,79 @@ export default function Home() {
   }, [isAnalyzing, progress, analysisResults.length]);
 
   const handleAnalyze = async () => {
+    // Basic validation of required fields
     if (!selectedParams.model || selectedParams.primaryIssues.length === 0) {
       toast.error('Please select a model and at least one primary issue');
       return;
     }
-
+  
+    const userApiKeys = apiKeys.reduce((acc, { provider, key }) => {
+      acc[provider as 'openai' | 'anthropic' | 'huggingface'] = key;
+      return acc;
+    }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
+  
+    // Map models to their providers
+    const modelProviderMap: Record<string, 'openai' | 'anthropic' | 'huggingface'> = {
+      'gpt-4o': 'openai',
+      'gpt-4o-mini': 'openai',
+      'gpt-o1-mini': 'openai',
+      'claude-3-5-sonnet': 'anthropic',
+      'mistral-7b': 'huggingface',
+      'llama-3-8b': 'huggingface',
+    };
+  
+    const provider = modelProviderMap[selectedParams.model];
+    if (!provider) {
+      toast.error('Selected model is not supported.');
+      return;
+    }
+  
+    if (!userApiKeys[provider]) {
+      toast.error(`Please provide your ${provider} API key`);
+      return;
+    }
+  
+    const payload = {
+      ...selectedParams,
+      userApiKeys,
+    };
+  
     setIsAnalyzing(true);
     setProgress(null);
     setConceptData({ concepts: new Map(), demographicDistributions: new Map() });
-
+  
     try {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(selectedParams),
+        body: JSON.stringify(payload),
       });
-
+  
       if (!response.ok) throw new Error('Analysis request failed');
-
+  
       const reader = response.body?.getReader();
       if (!reader) throw new Error('Failed to get response reader');
-
+  
       const decoder = new TextDecoder();
       let results: AnalysisResult[] = [];
       let buffer = ''; // Add buffer for incomplete chunks
-
+  
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
+  
         try {
           buffer += decoder.decode(value, { stream: true }); // Use streaming mode
           const lines = buffer.split('\n');
           buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
-
+  
           for (const line of lines) {
             if (line.trim().startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(5));
-
+  
                 if (data.type === 'complete') {
                   results = [...results, data.result];
                   setAnalysisResults(prev => [...prev, data.result]);
@@ -207,18 +257,16 @@ export default function Home() {
               } catch (parseError) {
                 console.error('Failed to parse SSE data:', parseError);
                 console.log('Problematic line:', line);
-                // Continue processing other lines instead of breaking
                 continue;
               }
             }
           }
         } catch (decodeError) {
           console.error('Failed to decode chunk:', decodeError);
-          // Continue reading the stream instead of breaking
           continue;
         }
       }
-
+  
       // Process any remaining data in buffer
       if (buffer.trim()) {
         try {
@@ -231,14 +279,14 @@ export default function Home() {
           console.error('Failed to parse final buffer:', parseError);
         }
       }
-
+  
       // Only proceed with concept extraction if we have results
       if (results.length > 0) {
         await extractConcepts(results);
       } else {
         throw new Error('No valid results received from analysis');
       }
-
+  
     } catch (error) {
       console.error('Pipeline failed:', error);
       toast.error('Pipeline failed. Please try again.', {
@@ -249,6 +297,7 @@ export default function Home() {
       setProgress(null);
     }
   };
+  
 
   const saveAnalysis = () => {
     if (analysisResults.length === 0) return;
@@ -328,6 +377,17 @@ export default function Home() {
     try {
       setIsExtracting({ llm: true, lda: true, embeddings: true });
 
+      const userApiKeys = apiKeys.reduce((acc, { provider, key }) => {
+        acc[provider as 'openai' | 'anthropic' | 'huggingface'] = key;
+        return acc;
+      }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
+  
+      // Validate API key presence
+      if (!userApiKeys.openai && !userApiKeys.anthropic && !userApiKeys.huggingface) {
+        toast.error('Please provide at least one API key.');
+        return;
+      }
+
       // Track all extracted concepts for later use
       const allExtractedConcepts: ExtractedConcepts[] = [];
 
@@ -339,7 +399,7 @@ export default function Home() {
       const llmPromise = fetch('/api/llm-extract-concepts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(results),
+        body: JSON.stringify({results, userApiKeys}),
         signal: llmAbortController.signal,
       });
 
@@ -527,11 +587,21 @@ export default function Home() {
   const extractEmbeddings = async (results: AnalysisResult[]) => {
     try {
       setIsExtracting(prev => ({ ...prev, embeddings: true }));
+      const userApiKeys = apiKeys.reduce((acc, { provider, key }) => {
+        acc[provider as 'openai' | 'anthropic' | 'huggingface'] = key;
+        return acc;
+      }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
+  
+      // Validate API key presence
+      if (!userApiKeys.openai && !userApiKeys.anthropic && !userApiKeys.huggingface) {
+        toast.error('Please provide at least one API key.');
+        return;
+      }
 
       const response = await fetch('/api/embeddings-extract-concepts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(results)
+        body: JSON.stringify({results, userApiKeys})
       });
 
       if (!response.ok) {
@@ -782,10 +852,10 @@ export default function Home() {
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background">
-      {/* Sidebar - Made more rectangular */}
+      {/* Sidebar */}
       <div
         className={`hidden sm:block ${isSidebarOpen ? 'sm:w-64' : 'sm:w-12'} 
-        border-r border-border bg-muted/50 transition-all duration-300 ease-in-out overflow-hidden sticky top-0 h-screen`}
+          border-r border-border bg-muted/50 transition-all duration-300 ease-in-out overflow-hidden sticky top-0 h-screen`}
       >
         {isSidebarOpen ? (
           <div className="flex flex-col h-full">
@@ -808,6 +878,46 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            {/* API Keys Section */}
+            <div className="p-4 border-b border-border">
+              <div className="flex flex-row gap-2 items-center">
+                <p className="font-bold">Add API keys</p>
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowKeys(!showKeys)}
+                        className="h-full w-full"
+                      >
+                        {showKeys ? (
+                          <Eye className="h-4 w-4" />
+                        ) : (
+                          <EyeOff className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{showKeys ? "Hide API keys" : "Show API keys"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              {apiKeys.map((apiKey) => (
+                <div
+                  className="grid w-full items-center gap-1.5 mt-2"
+                  key={`api-key-provider-${apiKey.provider}`}
+                >
+                  <Label className="capitalize">{apiKey.provider}</Label>
+                  <Input
+                    type={showKeys ? "text" : "password"}
+                    value={apiKey.key}
+                    onChange={(e) => updateApiKey(apiKey.provider, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="w-10 flex flex-col items-center py-2 gap-2 opacity-100 transition-opacity duration-300 ease-in-out">
@@ -820,23 +930,16 @@ export default function Home() {
                     className="h-8 w-8"
                     onClick={() => setIsSidebarOpen(true)}
                   >
-                    <div className="flex items-center text-[10px] text-muted-foreground/70 hover:text-accent transition-colors">
-                      <Slice className="h-4 w-4" />
-                    </div>
+                    <Slice className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="flex items-center">
+                <TooltipContent side="right">
                   Expand Sidebar (⌘E)
                 </TooltipContent>
               </Tooltip>
-
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                  >
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
                     <BarChart3 className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </TooltipTrigger>
@@ -1552,13 +1655,13 @@ export default function Home() {
                                 <div className="space-y-2">
                                   <div className="flex flex-wrap gap-2">
                                     {topic.words.map((word, idx) => (
-                                      <Badge key={`${word}-${idx}`} variant="secondary"className="flex items-center gap-1">
+                                      <Badge key={`${word}-${idx}`} variant="secondary" className="flex items-center gap-1">
                                         <span>{word}</span>
                                         <span className="text-xs opacity-70">
-                                        {topic.weights && !isNaN(topic.weights[idx]) 
-                                          ? (topic.weights[idx] * 100).toFixed(1) + '%' 
-                                          : 'N/A'}
-                                      </span>
+                                          {topic.weights && !isNaN(topic.weights[idx])
+                                            ? (topic.weights[idx] * 100).toFixed(1) + '%'
+                                            : 'N/A'}
+                                        </span>
                                       </Badge>
                                     ))}
                                   </div>

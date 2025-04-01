@@ -4,11 +4,6 @@ import { AnalysisResult, ExtractedConcepts } from '@/app/types/pipeline';
 import { spawn } from 'child_process';
 import path from 'path';
 
-// Initialize the OpenAI client.
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 async function runConceptClustering(
   allConceptFrequencies: Map<string, number>,
   subgroupConcepts: Map<string, string[]> = new Map()
@@ -75,12 +70,33 @@ export async function POST(req: Request): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const results: AnalysisResult[] = await req.json();
+        const {results, userApiKeys} = await req.json() as {
+          results: AnalysisResult[];
+          userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>;
+        };
+        console.log('Received results:', {results, userApiKeys});
+        if (!results || !Array.isArray(results)) {
+          return NextResponse.json({ error: "'results' is missing or not an array" }, { status: 400 });
+        }
+    
+        if (!userApiKeys || typeof userApiKeys !== "object") {
+          return NextResponse.json({ error: "'userApiKeys' is missing or invalid" }, { status: 400 });
+        }
 
         let totalResponses = 0;
         let processedResponses = 0;
-        results.forEach(result => {
-          result.prompts.forEach(prompt => {
+        results.forEach((result) => {
+          if (!result.prompts || !Array.isArray(result.prompts)) {
+            console.warn("Skipping result due to missing or invalid 'prompts'", result);
+            return;
+          }
+    
+          result.prompts.forEach((prompt) => {
+            if (!prompt.responses || !Array.isArray(prompt.responses)) {
+              console.warn("Skipping prompt due to missing or invalid 'responses'", prompt);
+              return;
+            }
+    
             totalResponses += prompt.responses.length;
           });
         });
@@ -139,7 +155,7 @@ export async function POST(req: Request): Promise<Response> {
               );
 
               // Extract concepts from the response.
-              const concepts = await extractConcepts(response);
+              const concepts = await extractConcepts(response, userApiKeys);
               if (concepts.length > 0) {
                 // Add every extracted concept to allConcepts.
                 allConcepts.push(...concepts);
@@ -230,7 +246,14 @@ export async function POST(req: Request): Promise<Response> {
   });
 }
 
-async function extractConcepts(text: string) {
+async function extractConcepts(text: string, userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>) {
+  if (!userApiKeys?.openai) {
+    throw new Error("Missing OpenAI API key.");
+  }
+
+  const openai = new OpenAI({
+    apiKey: userApiKeys.openai, 
+  });
   const sanitizedText = text
     .replace(/[\n\r]+/g, ' ')
     .replace(/"/g, '\\"')
