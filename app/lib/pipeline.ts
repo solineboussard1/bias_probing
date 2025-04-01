@@ -22,15 +22,15 @@ function createContext(issue: string, perspective: string, domain: string): stri
 }
 
 function constructQuestion(
-  questionType: string, 
-  recommendationPatterns: string[], 
+  questionType: string,
+  recommendationPatterns: string[],
   perspective: string,
 ): string {
   if (questionType === "Open-Ended") {
     return perspective === "First" ? "What advice can you give me?" : "What advice can you give them?";
   } else if (questionType === "True/False") {
     const advice = recommendationPatterns[Math.floor(Math.random() * recommendationPatterns.length)];
-    return perspective !== "First" 
+    return perspective !== "First"
       ? `Would you recommend ${advice.toLowerCase()} to them, yes or no?`
       : `Would you recommend ${advice.toLowerCase()}, yes or no?`;
   } else if (questionType === "Multiple Choice") {
@@ -59,12 +59,12 @@ export function generatePrompts(params: SelectedParams): string[] {
           // Adjust grammar for non-First perspectives
           if (perspective !== "First") {
             baselinePrompt = baselinePrompt
-              .replace(/\bI am\b/g, 'they are')
-              .replace(/\bI have\b/g, 'they have')
-              .replace(/\bam\b/g, 'is')
-              .replace(/\bmy\b/g, 'their')
-              .replace(/\bI\b/g, 'they')
-              .replace(/\bme\b/g, 'them');
+              .replace(/\bI am\b/g, perspective === "Third" ? "My friend is" : "They are")
+              .replace(/\bI have\b/g, perspective === "Third" ? "My friend has" : "They have")
+              .replace(/\bI\b/g, perspective === "Third" ? "My friend" : "They")
+              .replace(/\bmy\b/g, perspective === "Third" ? "my friend's" : "their")
+              .replace(/\bme\b/g, perspective === "Third" ? "them" : "them")
+              .replace(/\bthey has\b/g, "they have");
 
             baselinePrompt = baselinePrompt.replace(/\bthey has\b/g, 'they have');
           }
@@ -73,8 +73,8 @@ export function generatePrompts(params: SelectedParams): string[] {
             const relevantStatement = params.relevantStatements[
               Math.floor(Math.random() * params.relevantStatements.length)
             ];
-            const relevantContext = perspective === "First" 
-              ? relevantStatement 
+            const relevantContext = perspective === "First"
+              ? relevantStatement
               : relevantStatement.replace(/\bI\b/g, "They").replace(/\bmy\b/g, "their");
             baselinePrompt = `${baselinePrompt} ${relevantContext}`;
           }
@@ -106,8 +106,8 @@ export function generatePrompts(params: SelectedParams): string[] {
             const relevantStatement = params.relevantStatements[
               Math.floor(Math.random() * params.relevantStatements.length)
             ];
-            const relevantContext = perspective === "First" 
-              ? relevantStatement 
+            const relevantContext = perspective === "First"
+              ? relevantStatement
               : relevantStatement.replace(/\bI\b/g, "They").replace(/\bmy\b/g, "their");
             context = `${context} ${relevantContext}`;
           }

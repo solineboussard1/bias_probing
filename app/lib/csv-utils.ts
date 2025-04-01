@@ -155,7 +155,6 @@ export function createConceptExtractionCSV(
   });
 
 }
-
 export function createLDAExtractionCSV(
   analysisResults: AnalysisResult[],
   ldaResults: {
@@ -164,23 +163,35 @@ export function createLDAExtractionCSV(
   }
 ): string {
   const rows: LDAExtractionRow[] = [];
-  let responseIndex = 0; 
+  let responseIndex = 0;
 
-  analysisResults.forEach(result => {
-    result.prompts.forEach(prompt => {
+  analysisResults.forEach((result) => {
+    result.prompts.forEach((prompt) => {
       const { gender, age, race, socioeconomic } = extractDemographics(prompt.metadata.demographics);
-      prompt.responses.forEach(response => {
+      prompt.responses.forEach((response) => {
+        // Debugging: Log the current index and the corresponding distributions
+        console.log(`Processing responseIndex: ${responseIndex}`);
+        
+        // Check if topic distribution exists for this response index
         const topicDistribution = ldaResults.distributions[responseIndex];
-
-        if (!topicDistribution) return;
+        
+        // If no distribution, skip the response
+        if (!topicDistribution) {
+          console.warn(`No topic distribution found for response at index ${responseIndex}`);
+          responseIndex++;
+          return;
+        }
 
         const dominantTopicIndex = topicDistribution.indexOf(Math.max(...topicDistribution));
         const dominantTopic = ldaResults.topics[dominantTopicIndex];
         const topicProbability = topicDistribution[dominantTopicIndex];
         const topKeywords = dominantTopic.words.slice(0, 5).join(', ');
-        const topicDescription = ldaResults.topics.map((topic, idx) => 
-          `Topic ${topic.topic_id} (${topicDistribution[idx].toFixed(3)})`
-        ).join('; ');
+        const topicDescription = ldaResults.topics
+          .map(
+            (topic, idx) =>
+              `Topic ${topic.topic_id} (${topicDistribution[idx].toFixed(3)})`
+          )
+          .join('; ');
 
         rows.push({
           Prompt: prompt.text,
@@ -196,12 +207,12 @@ export function createLDAExtractionCSV(
           Topic_Distribution: JSON.stringify(
             ldaResults.topics.map((topic, idx) => ({
               topic_id: topic.topic_id,
-              probability: topicDistribution[idx]
+              probability: topicDistribution[idx],
             }))
-          )
+          ),
         });
 
-        responseIndex++;
+        responseIndex++; 
       });
     });
   });
@@ -209,9 +220,10 @@ export function createLDAExtractionCSV(
   return Papa.unparse(rows, {
     quotes: true,
     delimiter: ",",
-    header: true
+    header: true,
   });
 }
+
 
 
 export function createEmbeddingsExtractionCSV(
@@ -293,47 +305,56 @@ export function createMergedAnalysisCSV(
   const mergedRows: MergedRow[] = [];
   let currentResponseIdx = 0;
 
-  analysisResults.forEach(result => {
-    result.prompts.forEach(prompt => {
-      const { gender, age, race, socioeconomic } = extractDemographics(prompt.metadata.demographics);
-      prompt.responses.forEach(response => {
-        const cleanResponse = response.replace(/[\n\r]+/g, ' ').trim();
+  for (const result of analysisResults) {
+    for (const prompt of result.prompts) {
+      for (const response of prompt.responses) {
+        // If we have run out of distributions, skip this response.
+        if (currentResponseIdx >= ldaResults.distributions.length) {
+          console.warn(`No topic distribution for response at index ${currentResponseIdx}`);
+          continue;
+        }
+        const topicDistribution = ldaResults.distributions[currentResponseIdx];
+        if (!topicDistribution || topicDistribution.length !== ldaResults.topics.length) {
+          console.warn(`Invalid topic distribution for response at index ${currentResponseIdx}`);
+          currentResponseIdx++;
+          continue;
+        }
 
-        const matchingConcepts = extractedConcepts.find(
-          ec => ec.response === cleanResponse
+        const dominantTopicIndex = topicDistribution.indexOf(Math.max(...topicDistribution));
+        const dominantTopic = ldaResults.topics[dominantTopicIndex];
+        const topicProbability = topicDistribution[dominantTopicIndex];
+        const topKeywords = dominantTopic.words.slice(0, 5).join(', ');
+        const topicDescription = ldaResults.topics
+          .map((topic, idx) => `Topic ${topic.topic_id} (${topicDistribution[idx].toFixed(3)})`)
+          .join('; ');
+
+        // Find a matching embedding cluster, if any.
+        const embeddingCluster = embeddingsResults.find(c =>
+          c.representative_responses.some(rep =>
+            rep.replace(/[\n\r\s]+/g, ' ').trim().toLowerCase() === response.replace(/[\n\r\s]+/g, ' ').trim().toLowerCase()
+          )
+        );
+        const responseEmbeddingIdx = embeddingCluster?.representative_responses.findIndex(rep =>
+          rep.replace(/[\n\r\s]+/g, ' ').trim().toLowerCase() === response.replace(/[\n\r\s]+/g, ' ').trim().toLowerCase()
         );
 
+        const matchingConcepts = extractedConcepts.find(
+          ec => ec.response === response.replace(/[\n\r]+/g, ' ').trim()
+        );
+
+        // Extract demographics.
+        const { gender, age, race, socioeconomic } = extractDemographics(prompt.metadata.demographics);
+
         if (matchingConcepts) {
-          const concepts = Array.isArray(matchingConcepts.concepts) 
-            ? matchingConcepts.concepts 
+          const concepts = Array.isArray(matchingConcepts.concepts)
+            ? matchingConcepts.concepts
             : JSON.parse(matchingConcepts.concepts as unknown as string);
 
-          const topicDistribution = ldaResults.distributions[currentResponseIdx];
-          if (!topicDistribution) return;
-          const dominantTopicIndex = topicDistribution 
-            ? topicDistribution.indexOf(Math.max(...topicDistribution))
-            : -1;
-          const dominantTopic = dominantTopicIndex !== -1 
-            ? ldaResults.topics[dominantTopicIndex]
-            : null;
-
-          const embeddingCluster = embeddingsResults.find(c => 
-            c.representative_responses.some(rep => 
-              rep.replace(/[\n\r\s]+/g, ' ').trim().toLowerCase() === 
-              cleanResponse.toLowerCase()
-            )
-          );
-
-          const responseEmbeddingIdx = embeddingCluster?.representative_responses.findIndex(rep =>
-            rep.replace(/[\n\r\s]+/g, ' ').trim().toLowerCase() === 
-            cleanResponse.toLowerCase()
-          );
-
-          concepts.forEach((concept: string) => {
+          for (const concept of concepts) {
             const normConcept = normalizeConcept(concept);
             const conceptClusterMap = clusters.reduce((acc, cluster) => {
-              cluster.concepts.forEach(concept => {
-                acc[normalizeConcept(concept)] = cluster.id.toString();
+              cluster.concepts.forEach(cConcept => {
+                acc[normalizeConcept(cConcept)] = cluster.id.toString();
               });
               return acc;
             }, {} as Record<string, string>);
@@ -348,20 +369,20 @@ export function createMergedAnalysisCSV(
               Prompt: prompt.text,
               Gender: gender,
               Age: age,
-              Race: race,
+              Race: matchingConcepts.demographics?.find(d => d.category === 'ethnicities')?.value || race,
               Socioeconomic: socioeconomic,
-              Response: cleanResponse,
+              Response: response,
               GPT_Categories: concept,
               Concept_Cluster: clusterNumber,
               Dominant_Topic: dominantTopic?.topic_id ?? "",
-              Topic_Probability: dominantTopic ? topicDistribution[dominantTopicIndex] : "",
-              Topic_Keywords: dominantTopic ? dominantTopic.words.slice(0, 5).join(', ') : "",
-              Topic_Distribution: topicDistribution ? JSON.stringify(
+              Topic_Probability: dominantTopic ? topicProbability : "",
+              Topic_Keywords: dominantTopic ? topKeywords : "",
+              Topic_Distribution: JSON.stringify(
                 ldaResults.topics.map((topic, idx) => ({
                   topic_id: topic.topic_id,
-                  probability: topicDistribution[idx]
+                  probability: topicDistribution[idx],
                 }))
-              ) : "",
+              ),
               PCA_One: embeddingCluster && responseEmbeddingIdx !== undefined && responseEmbeddingIdx !== -1
                 ? embeddingCluster.coordinates[responseEmbeddingIdx][0]
                 : "",
@@ -373,12 +394,12 @@ export function createMergedAnalysisCSV(
                 ? embeddingCluster.embeddings[responseEmbeddingIdx]
                 : []
             });
-          });
+          }
         }
         currentResponseIdx++;
-      });
-    });
-  });
+      }
+    }
+  }
 
   return Papa.unparse(mergedRows, {
     quotes: true,
@@ -386,6 +407,7 @@ export function createMergedAnalysisCSV(
     header: true
   });
 }
+
 export function downloadCSV(csv: string, filename: string) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');

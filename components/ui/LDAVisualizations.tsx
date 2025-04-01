@@ -1,118 +1,194 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import Chart from "chart.js/auto";
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Chart from 'chart.js/auto';
+import { DownloadIcon } from "lucide-react";
+import { LDAVisualizationsProps } from '@/app/types/pipeline';
 
-type LDAVisualizationProps = {
-  ldaData: {
-    topics: { topic_id: number; words: string[]; weights: number[] }[];
-    demographicDistributions: Record<string, Record<string, number[]>>;
+const getColorForAttribute = (attribute: string) => {
+  const colorMap: { [key: string]: string } = {
+    male: 'rgba(54, 162, 235, 0.6)',
+    female: 'rgba(255, 99, 132, 0.6)',
   };
+  if (colorMap[attribute]) return colorMap[attribute];
+  const r = Math.floor(Math.random() * 200 + 55);
+  const g = Math.floor(Math.random() * 200 + 55);
+  const b = Math.floor(Math.random() * 200 + 55);
+  return `rgba(${r}, ${g}, ${b}, 0.6)`;
 };
 
+export function LDAVisualizations({ ldaResults, analysisResults }: LDAVisualizationsProps) {
+  const overallChartRef = useRef<HTMLCanvasElement>(null);
+  const demographicChartRef = useRef<HTMLCanvasElement>(null);
 
-export function LDAVisualizations({ ldaData }: LDAVisualizationProps) {
-  const chartRef = useRef<HTMLCanvasElement>(null);
+  // Compute overall average topic probabilities across all documents.
+  const overallAverages = useMemo(() => {
+    if (!ldaResults.distributions || ldaResults.distributions.length === 0) return [];
+    const nTopics = ldaResults.distributions[0].length;
+    const sums = Array(nTopics).fill(0);
+    ldaResults.distributions.forEach(dist => {
+      dist.forEach((value, idx) => {
+        sums[idx] += value;
+      });
+    });
+    return sums.map(sum => sum / ldaResults.distributions.length);
+  }, [ldaResults.distributions]);
 
-  // Get demographic groups from the passed data.
-  const demographicGroups = useMemo(() => {
-    console.log("Demographic groups:", ldaData.demographicDistributions);
-    return Object.keys(ldaData.demographicDistributions);
-  }, [ldaData]);
+  // Get demographic categories from the LDA result's demographicDistributions.
+  const demographicCategories = useMemo(() => {
+    if (!ldaResults.demographicDistributions) return [];
+    return Object.keys(ldaResults.demographicDistributions);
+  }, [ldaResults.demographicDistributions]);
 
-  // Initialize selectedGroup to the first available group.
-  const [selectedGroup, setSelectedGroup] = useState<string>(demographicGroups[0] || "");
+  console.log("Demographic Categories:", demographicCategories);
 
-  // Ensure selectedGroup is valid when demographicGroups changes.
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+  // Ensure selected category is valid when categories change
   useEffect(() => {
-    console.log("Available demographic groups:", demographicGroups);
-    if (demographicGroups.length > 0 && !demographicGroups.includes(selectedGroup)) {
-      setSelectedGroup(demographicGroups[0]);
+    if (demographicCategories.length > 0) {
+      setSelectedCategory(prevCategory =>
+        demographicCategories.includes(prevCategory) ? prevCategory : demographicCategories[0]
+      );
     }
-  }, [demographicGroups, selectedGroup]);
-
-  // Extract topic labels.
-  const topicLabels = useMemo(() => {
-    console.log("Topic labels:", ldaData.topics);
-    return ldaData.topics.map((topic) => `Topic ${topic.topic_id + 1}`);
-  }, [ldaData]);
-
-  // Get data for the selected demographic group.
-  const groupedData = useMemo(() => {
-    console.log("Grouping data for selected demographic:", selectedGroup);
-    const categoryData = ldaData.demographicDistributions[selectedGroup];
-    if (!categoryData) return { labels: [], datasets: [] };
-
-    const datasets = Object.entries(categoryData).map(([subgroup, topicProbs]) => ({
-      label: subgroup,
-      data: topicProbs,
-      backgroundColor: getColorForAttribute(subgroup),
-    }));
-
-    return { labels: topicLabels, datasets };
-  }, [selectedGroup, ldaData, topicLabels]);
+  }, [demographicCategories]);
 
   useEffect(() => {
-    console.log("Grouped data for chart:", groupedData);
-    if (chartRef.current) {
-      const ctx = chartRef.current.getContext("2d");
-      if (ctx) {
-        // Destroy any existing chart instance to prevent duplicates.
-        const existingChart = Chart.getChart(chartRef.current);
-        if (existingChart) existingChart.destroy();
+    console.log("Selected Demographic Category:", selectedCategory);
+  }, [selectedCategory]);
 
-        new Chart(ctx, {
-          type: "bar",
-          data: groupedData,
-          options: {
-            responsive: true,
-            plugins: {
-              title: { display: true, text: `LDA Topic Distribution - ${selectedGroup}` },
-            },
-            scales: { x: { stacked: false }, y: { beginAtZero: true } },
-          },
-        });
+  useEffect(() => {
+    // Clean up existing charts before rendering new ones
+    [overallChartRef, demographicChartRef].forEach(ref => {
+      if (ref.current) {
+        const existingChart = Chart.getChart(ref.current);
+        if (existingChart) {
+          console.log("Destroying existing chart...");
+          existingChart.destroy();
+        }
       }
+    });
+
+    // --- Overall Average Topic Distribution Chart ---
+    const overallCtx = overallChartRef.current?.getContext('2d');
+    if (overallCtx && overallAverages.length > 0) {
+      const labels = ldaResults.topics.map((_, idx) => `Topic ${idx + 1}`);
+      new Chart(overallCtx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Average Topic Probability',
+            data: overallAverages,
+            backgroundColor: 'rgba(75, 192, 192, 0.6)'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { 
+            title: { display: true, text: 'Overall Average Topic Distribution' } 
+          },
+          scales: {
+            x: { beginAtZero: true },
+            y: { beginAtZero: true }
+          }
+        }
+      });
     }
-  }, [groupedData, selectedGroup]);
+
+    // --- Demographic Distribution Chart ---
+    const demographicCtx = demographicChartRef.current?.getContext('2d');
+    if (demographicCtx && selectedCategory && ldaResults.demographicDistributions) {
+      // Ensure we correctly access subgroup data (handling nested structure)
+      const subgroupData = ldaResults.demographicDistributions[selectedCategory];
+
+      console.log("Subgroup Data for", selectedCategory, ":", subgroupData);
+
+      if (!subgroupData || typeof subgroupData !== "object") {
+        console.error("Invalid subgroupData for:", selectedCategory, subgroupData);
+        return;
+      }
+
+      const labels = ldaResults.topics.map((_, idx) => `Topic ${idx + 1}`);
+      const datasets = Object.entries(subgroupData).map(([subgroup, avgVector]) => ({
+        label: subgroup,
+        data: avgVector as number[], // Ensure it's a number array
+        backgroundColor: getColorForAttribute(subgroup)
+      }));
+
+      if (datasets.length === 0) {
+        console.warn("No datasets available for demographic chart");
+        return;
+      }
+
+      new Chart(demographicCtx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets
+        },
+        options: {
+          responsive: true,
+          plugins: { 
+            title: { display: true, text: `Average Topic Distribution by ${selectedCategory}` } 
+          },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'Average Probability' } }
+          }
+        }
+      });
+    }
+  }, [ldaResults, overallAverages, selectedCategory]);
+
+  const handleDownloadCSV = () => {
+    console.log("CSV download for LDA visualization is not implemented.");
+  };
 
   return (
     <div className="grid grid-cols-1 gap-6">
-      <div className="flex items-center gap-2">
-        <label htmlFor="demographic-select" className="font-medium">
-          Select Demographic Type:
-        </label>
-        <select
-          id="demographic-select"
-          value={selectedGroup}
-          onChange={(e) => setSelectedGroup(e.target.value)}
-          className="border rounded p-1"
+      <div className="flex justify-end">
+        <Button
+          onClick={handleDownloadCSV}
+          className="flex items-center gap-2"
         >
-          {demographicGroups.map((group) => (
-            <option key={group} value={group}>
-              {group}
-            </option>
-          ))}
-        </select>
+          <DownloadIcon className="h-4 w-4" />
+          download_lda_results.csv
+        </Button>
       </div>
 
       <Card>
         <CardContent className="pt-4">
-          <h3 className="text-lg font-semibold mb-4">LDA Topic Distributions</h3>
-          <canvas ref={chartRef} />
+          <h3 className="text-lg font-semibold mb-4">Overall Average Topic Distribution</h3>
+          <canvas ref={overallChartRef} />
+        </CardContent>
+      </Card>
+
+      {demographicCategories.length > 0 && (
+        <div className="flex items-center gap-2">
+          <label htmlFor="demographic-select" className="font-medium">
+            Filter by Demographic Category:
+          </label>
+          <select
+            id="demographic-select"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="border rounded p-1"
+          >
+            {demographicCategories.map(category => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <Card>
+        <CardContent className="pt-4">
+          <h3 className="text-lg font-semibold mb-4">
+            Average Topic Distribution by {selectedCategory}
+          </h3>
+          <canvas ref={demographicChartRef} />
         </CardContent>
       </Card>
     </div>
   );
-}
-
-const colorMap: { [key: string]: string } = {
-  man: "rgba(54, 162, 235, 0.6)",
-  woman: "rgba(255, 99, 132, 0.6)",
-  non_binary: "rgba(153, 102, 255, 0.6)",
-  baseline: "rgba(100, 100, 100, 0.6)",
-};
-
-function getColorForAttribute(attribute: string) {
-  return colorMap[attribute] ||
-    `rgba(${Math.random() * 200 + 55}, ${Math.random() * 200 + 55}, ${Math.random() * 200 + 55}, 0.6)`;
 }

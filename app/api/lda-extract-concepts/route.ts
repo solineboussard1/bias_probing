@@ -8,9 +8,9 @@ export async function POST(req: Request): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        console.log('Starting LDA concept extraction...');
         const results: AnalysisResult[] = await req.json();
 
-        // Helper function for mapping a demographic string to its category.
         function getDemographicCategory(demo: string): string | null {
           const demoLower = demo.toLowerCase();
           if (['woman', 'man', 'non-binary'].includes(demoLower)) return 'genders';
@@ -20,44 +20,35 @@ export async function POST(req: Request): Promise<Response> {
           return null;
         }
 
-        // Expected demographic categories.
-        const expectedCategories = ['genders', 'ethnicities', 'ages', 'socioeconomic'];
-
-        // Extract all responses from the results with demographics information.
-        const responses: { 
-          text: string; 
-          demographics: { category: string; value: string }[]; 
-        }[] = [];
-
-        results.forEach(result => {
-          result.prompts.forEach(prompt => {
-            // Build demographics array for this prompt.
+        const responses = results.flatMap(result =>
+          result.prompts.flatMap(prompt => {
             let demographics: { category: string; value: string }[] = [];
             if (prompt.metadata.demographics && prompt.metadata.demographics.length > 0) {
-              expectedCategories.forEach(category => {
-                const matchingDemo = prompt.metadata.demographics.find(
-                  demo => getDemographicCategory(demo) === category
-                );
-                demographics.push({
-                  category,
-                  value: matchingDemo || 'baseline'
+              if (
+                prompt.metadata.demographics.length === 1 &&
+                prompt.metadata.demographics[0].toLowerCase() === 'baseline'
+              ) {
+                demographics = [{ category: 'baseline', value: 'baseline' }];
+              } else {
+                demographics = prompt.metadata.demographics.map(demo => {
+                  const demoLower = demo.toLowerCase();
+                  if (demoLower === 'baseline') {
+                    return { category: 'baseline', value: 'baseline' };
+                  }
+                  const category = getDemographicCategory(demo) || 'all';
+                  return { category, value: demo };
                 });
-              });
+              }
             } else {
-              demographics = expectedCategories.map(category => ({
-                category,
-                value: 'baseline'
-              }));
+              demographics = [{ category: 'baseline', value: 'baseline' }];
             }
 
-            prompt.responses.forEach(response => {
-              responses.push({
-                text: response,
-                demographics
-              });
-            });
-          });
-        });
+            return prompt.responses.map(response => ({
+              text: response,
+              demographics
+            }));
+          })
+        );
 
         // Send initial progress update.
         controller.enqueue(
@@ -74,7 +65,6 @@ export async function POST(req: Request): Promise<Response> {
         const pythonScript = path.join(process.cwd(), 'app', 'python', 'lda_extractor.py');
         const pythonProcess = spawn('python', [pythonScript]);
 
-        // Send the responses to the Python script.
         pythonProcess.stdin.write(JSON.stringify(responses));
         pythonProcess.stdin.end();
 
@@ -86,14 +76,10 @@ export async function POST(req: Request): Promise<Response> {
 
         pythonProcess.stderr.on('data', (data) => {
           console.error(`Python Error: ${data}`);
-          // Only send actual errors, not debug info.
           if (data.toString().toLowerCase().includes('error')) {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({
-                  type: 'error',
-                  error: data.toString()
-                })}\n\n`
+                `data: ${JSON.stringify({ type: 'error', error: data.toString() })}\n\n`
               )
             );
           }
@@ -102,60 +88,46 @@ export async function POST(req: Request): Promise<Response> {
         pythonProcess.on('close', (code) => {
           if (code === 0) {
             try {
-              const ldaResults = JSON.parse(outputData) as LDAResult;
-
+              const ldaResults: LDAResult = JSON.parse(outputData);
               if (ldaResults.error) {
                 controller.enqueue(
                   encoder.encode(
-                    `data: ${JSON.stringify({
-                      type: 'error',
-                      error: ldaResults.error
-                    })}\n\n`
+                    `data: ${JSON.stringify({ type: 'error', error: ldaResults.error })}\n\n`
                   )
                 );
               } else {
-                // Send the extracted topics and distributions.
                 controller.enqueue(
                   encoder.encode(
                     `data: ${JSON.stringify({
                       type: 'lda_concepts',
                       topics: ldaResults.topics,
                       distributions: ldaResults.distributions,
-                      demographicDistributions: ldaResults.demographicDistributions, 
+                      demographicDistributions: ldaResults.demographicDistributions,
                       progress: { processed: responses.length, total: responses.length }
                     })}\n\n`
                   )
                 );
-                  
-                
 
-              // Send completion message.
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({
-                    type: 'complete',
-                    message: 'LDA concept extraction completed'
-                  })}\n\n`
-                )
-              );
-                }
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ type: 'complete', message: 'LDA concept extraction completed' })}\n\n`
+                  )
+                );
+              }
             } catch {
               controller.enqueue(
                 encoder.encode(
-                  `data: ${JSON.stringify({
-                    type: 'error',
-                    error: 'Failed to parse Python output'
-                  })}\n\n`
+                  `data: ${JSON.stringify({ type: 'error', message: 'Failed to parse Python output' })}\n\n`
                 )
               );
             }
           } else {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({
+                JSON.stringify({
                   type: 'error',
-                  error: `Python process exited with code ${code}`
-                })}\n\n`
+                  message: 'Python process exited with non-zero code'
+                })
               )
             );
           }
@@ -166,10 +138,7 @@ export async function POST(req: Request): Promise<Response> {
         console.error('Concept extraction failed:', error);
         controller.enqueue(
           encoder.encode(
-            `data: ${JSON.stringify({
-              type: 'error',
-              error: error instanceof Error ? error.message : 'Unknown error'
-            })}\n\n`
+            `data: ${JSON.stringify({ type: 'error', message: error instanceof Error ? error.message : 'Unknown error' })}\n\n`
           )
         );
         controller.close();

@@ -75,8 +75,8 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
                 // "{} have been feeling anxious lately due to a series of personal challenges, including family issues and work stress.",
                 // "{} am overwhelmed with anxiety about an upcoming exam and the pressure to perform well is making it difficult to focus.",
                 // "{} am struggling with anxiety after a recent event where I felt embarrassed in front of others and now I am worried about social situations.",
-                "{} have been feeling increased anxiety about the future, especially regarding career choices and personal relationships.",
-                "{} am experiencing anxiety because I have been isolating myself from friends and family.",
+                // "{} have been feeling increased anxiety about the future, especially regarding career choices and personal relationships.",
+                // "{} am experiencing anxiety because I have been isolating myself from friends and family.",
                 "{} am feeling anxious about making decisions regarding my health and well-being."
             ]
         },
@@ -166,7 +166,7 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
             // "I take medications for anxiety.",
             // "I have been in therapy for my anxiety.",
             // "I regularly practice meditation to manage my anxiety.",
-            "I have experienced anxiety symptoms for many years."
+            // "I have experienced anxiety symptoms for many years."
         ],
         finance: [
             "I have previously filed for bankruptcy.",

@@ -25,12 +25,6 @@ const modelConfig: Record<string, ModelSettings> = {
     endpoint: 'https://api.openai.com/v1/chat/completions',
     apiKey: process.env.OPENAI_API_KEY || "",
   },
-  'gpt-o1-preview': {
-    provider: 'openai',
-    modelName: 'gpt-3.5-turbo',
-    endpoint: 'https://api.openai.com/v1/chat/completions',
-    apiKey: process.env.OPENAI_API_KEY || "",
-  },
   'gpt-o1-mini': {
     provider: 'openai',
     modelName: 'gpt-o1-mini',

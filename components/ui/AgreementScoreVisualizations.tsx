@@ -198,7 +198,7 @@ export function AgreementScoreVisualizations({ agreementData }: AgreementScoreVi
       break;
     case 'cluster_pca':
       heatmapData = agreementData.mapping_data.contingency_tables.cluster_pca;
-      heatmapTitle = 'Cluster-Embedding Heatmap';
+      heatmapTitle = 'Cluster-Embeddings Heatmap';
       xLabel = 'Embeddings';
       yLabel = 'Concept Clusters';
       break;
@@ -291,7 +291,7 @@ export function AgreementScoreVisualizations({ agreementData }: AgreementScoreVi
         </Card>
         <Card className="w-full">
           <CardContent className="p-4">
-            <h3 className="text-sm font-medium mb-4">Cluster to PCA Mapping</h3>
+            <h3 className="text-sm font-medium mb-4">Cluster to Embedding Mapping</h3>
             <div className="space-y-2">
               {Object.entries(agreementData.mapping_data.cluster_pca_mapping).map(([key, value]) => (
                 <div key={key} className="flex justify-between items-center text-sm">
@@ -305,7 +305,7 @@ export function AgreementScoreVisualizations({ agreementData }: AgreementScoreVi
         </Card>
         <Card className="w-full">
           <CardContent className="p-4">
-            <h3 className="text-sm font-medium mb-4">Topic to PCA Mapping</h3>
+            <h3 className="text-sm font-medium mb-4">Topic to Embedding Mapping</h3>
             <div className="space-y-2">
               {Object.entries(agreementData.mapping_data.topic_pca_mapping).map(([key, value]) => (
                 <div key={key} className="flex justify-between items-center text-sm">

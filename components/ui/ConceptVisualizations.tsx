@@ -43,17 +43,6 @@ const getColorForAttribute = (attribute: string) => {
   return `rgba(${r}, ${g}, ${b}, 0.6)`;
 };
 
-type DemographicDataset = {
-  label: string;
-  data: number[];
-  backgroundColor: string;
-};
-
-type GroupedDemographicData = {
-  labels: string[];
-  datasets: DemographicDataset[];
-};
-
 export function ConceptVisualizations({ conceptData }: ConceptVisualizationsProps) {
   // Two chart refs.
   const overallChartRef = useRef<HTMLCanvasElement>(null);

@@ -90,13 +90,11 @@ def check_agreement(row, cluster_to_topic, cluster_to_pca, topic_to_pca):
 def calculate_agreement_scores():
     try:
         csv_path = os.path.join(os.getcwd(), 'public', 'merged_analysis.csv')
-        # print(f"Looking for CSV at: {csv_path}", file=sys.stderr)
         
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"CSV file not found at {csv_path}")
             
         grouped_df = pd.read_csv(csv_path)
-        # print(f"Successfully read CSV with {len(grouped_df)} rows", file=sys.stderr)
         print("Unique values in Concept_Cluster:", grouped_df['Concept_Cluster'].unique(), file=sys.stderr)
         print("Unique values in Dominant_Topic:", grouped_df['Dominant_Topic'].unique(), file=sys.stderr)
         print("Unique values in Embeddings_Cluster:", grouped_df['Embeddings_Cluster'].unique(), file=sys.stderr)

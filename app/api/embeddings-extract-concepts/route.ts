@@ -20,12 +20,9 @@ export async function POST(req: Request): Promise<Response> {
         });
       });
     });
-
-    // console.log(`Processed ${responses.length} responses`);
     
     // Run Python script
     const pythonScript = path.join(process.cwd(), 'app', 'python', 'embeddings_extractor.py');
-    // console.log('Launching Python script:', pythonScript);
     
     const pythonResult = await new Promise<Record<string, unknown>>((resolve, reject) => {
       const pythonProcess = spawn('python', [pythonScript]);
@@ -34,7 +31,6 @@ export async function POST(req: Request): Promise<Response> {
 
       pythonProcess.stdout.on('data', (data) => {
         const chunk = data.toString();
-        // console.log('Python stdout:', chunk);
         outputData += chunk;
       });
 
@@ -51,7 +47,6 @@ export async function POST(req: Request): Promise<Response> {
         }
 
         try {
-          // Find the last line that contains valid JSON
           const outputLines = outputData.trim().split('\n');
           const lastLine = outputLines[outputLines.length - 1];
           const result = JSON.parse(lastLine);
@@ -69,7 +64,6 @@ export async function POST(req: Request): Promise<Response> {
 
       // Send the input data
       const inputJson = JSON.stringify(responses);
-      // console.log('Sending input to Python:', inputJson.slice(0, 200) + '...');
       pythonProcess.stdin.write(inputJson);
       pythonProcess.stdin.end();
     });

@@ -485,9 +485,10 @@ export default function Home() {
                     break;
                   case 'lda_concepts':
                     setLdaResults({
+                      doc_topic_distributions: data.distributions,
                       topics: data.topics,
                       distributions: data.distributions,
-                      demographicDistributions: data.demographic_distributions,
+                      demographicDistributions: data.demographicDistributions,
                     });
                     break;
                   case 'complete':
@@ -1540,86 +1541,37 @@ export default function Home() {
                         </div>
                       )}
                     </TabsContent>
-
-                    {/* LDA Topics Tab - Mobile optimized */}
                     <TabsContent value="lda" className="flex-1 overflow-y-auto px-4 sm:px-6 min-h-0">
-                      {ldaResults ? (
+                      {ldaResults && analysisResults && (
                         <div className="space-y-6 pb-6">
-                          <div className="flex justify-end">
-                            <Button
-                              onClick={() => {
-                                if (!analysisResults || !ldaResults) {
-                                  console.error("❌ Missing required data for LDA CSV export");
-                                  return;
-                                }
-                                console.log("✅ Generating LDA CSV...");
-                                const csv = createLDAExtractionCSV(analysisResults, ldaResults);
-                                downloadCSV(csv, "topic_mapping.csv");
-                              }}
-                              className="flex items-center gap-2"
-                            >
-                              <Download className="h-4 w-4" />
-                              topic_mapping.csv
-                            </Button>
-                          </div>
-
-                          {/* Existing LDA Topics Display */}
+                          {/* Existing Topics Display */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {ldaResults.topics?.length > 0 ? (
-                              ldaResults.topics.map((topic) => (
-                                <Card key={topic.topic_id} className="p-4">
-                                  <h4 className="font-medium mb-2">Topic {topic.topic_id + 1}</h4>
-                                  <div className="space-y-2">
-                                    <div className="flex flex-wrap gap-2">
-                                      {topic.words.map((word, idx) => (
-                                        <Badge key={word} variant="secondary" className="flex items-center gap-1">
-                                          <span>{word}</span>
-                                          <span className="text-xs opacity-70">
-                                            {(topic.weights[idx] * 100).toFixed(1)}%
-                                          </span>
-                                        </Badge>
-                                      ))}
-                                    </div>
+                            {ldaResults.topics.map((topic) => (
+                              <Card key={topic.topic_id} className="p-4">
+                                <h4 className="font-medium mb-2">Topic {topic.topic_id + 1}</h4>
+                                <div className="space-y-2">
+                                  <div className="flex flex-wrap gap-2">
+                                    {topic.words.map((word, idx) => (
+                                      <Badge key={`${word}-${idx}`} variant="secondary"className="flex items-center gap-1">
+                                        <span>{word}</span>
+                                        <span className="text-xs opacity-70">
+                                        {topic.weights && !isNaN(topic.weights[idx]) 
+                                          ? (topic.weights[idx] * 100).toFixed(1) + '%' 
+                                          : 'N/A'}
+                                      </span>
+                                      </Badge>
+                                    ))}
                                   </div>
-                                </Card>
-                              ))
-                            ) : (
-                              <p className="text-gray-500">No LDA topics found.</p>
-                            )}
+                                </div>
+                              </Card>
+                            ))}
                           </div>
-
-                          {/* LDA Visualization */}
-                          {ldaResults.demographicDistributions ? (
-                            <div className="mt-6">
-                              <h3 className="text-lg font-semibold mb-2">Demographic Topic Distributions</h3>
-                              {Object.keys(ldaResults.demographicDistributions).length > 0 ? (
-                                <>
-                                  <LDAVisualizations
-                                    ldaData={{
-                                      topics: ldaResults.topics,
-                                      demographicDistributions: Object.fromEntries(
-                                        Object.entries(ldaResults.demographicDistributions).map(([key, subgroupObj]) => [
-                                          key,
-                                          Object.fromEntries(
-                                            Object.entries(subgroupObj).map(([subgroupKey, arr]) => [subgroupKey, arr as number[]])
-                                          ),
-                                        ])
-                                      ),
-                                    }}
-                                  />
-                                </>
-                              ) : (
-                                <p className="text-gray-500">No demographic distributions available.</p>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-gray-500"> No LDA demographic data found.</p>
-                          )}
+                          {/* Visualizations */}
+                          <LDAVisualizations ldaResults={ldaResults} analysisResults={analysisResults} />
                         </div>
-                      ) : (
-                        <p className="text-gray-500"> No LDA results available.</p>
                       )}
                     </TabsContent>
+
 
                     {/* Embeddings Tab - Mobile optimized */}
                     <TabsContent value="embeddings" className="flex-1 overflow-y-auto px-4 sm:px-6 min-h-0">

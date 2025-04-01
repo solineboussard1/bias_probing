@@ -30,7 +30,6 @@ async function runConceptClustering(
     });
 
     pythonProcess.on('close', (code) => {
-      // console.log("Python stdout:", outputData);
       console.log("Python stderr:", errorData);
       if (code !== 0) {
         console.error('Python clustering error:', errorData);
@@ -65,8 +64,6 @@ async function runConceptClustering(
         ])
       )
     };
-
-    // console.log("Sending clustering input data:", JSON.stringify(inputData, null, 2));
 
     pythonProcess.stdin.write(JSON.stringify(inputData));
     pythonProcess.stdin.end();
@@ -195,8 +192,6 @@ export async function POST(req: Request): Promise<Response> {
             })}\n\n`
           )
         );
-
-        // Completion message.
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({
