@@ -147,6 +147,15 @@ export interface LDAVisualizationsProps {
   ldaResults: LDAResult;
 }
 
+export type ConceptVisualizationsProps = {
+  conceptData: {
+    concepts: Map<string, number>;
+    demographicDistributions: { [key: string]: { [subgroup: string]: number[][] } };
+    clusters: ClusterOutput;
+    rawResults?: AnalysisResult[];
+    extractedConcepts?: ExtractedConcepts[];
+  };
+};
 
 
 export type EmbeddingsResult = {

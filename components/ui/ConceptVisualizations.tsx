@@ -4,34 +4,11 @@ import { Button } from "@/components/ui/button";
 import Chart from 'chart.js/auto';
 import { DownloadIcon } from "lucide-react";
 import { createConceptExtractionCSV, downloadCSV } from "@/app/lib/csv-utils";
-import { AnalysisResult, ExtractedConcepts } from "@/app/types/pipeline";
+import {ClusterData, ConceptVisualizationsProps } from "@/app/types/pipeline";
 
-export type ClusterData = {
-  id: number;
-  concepts: string[];
-  frequency: number[];
-  label: string;
-  total_frequency: number;
-};
 export type ClusterOutput = {
   all: ClusterData[];
   demographics: { [key: string]: ClusterData[] };
-};
-
-type DemographicDistributions = {
-  [category: string]: {
-    [subCategory: string]: number[];
-  };
-};
-
-type ConceptVisualizationsProps = {
-  conceptData: {
-    concepts: Map<string, number>;
-    demographicDistributions: DemographicDistributions;
-    clusters: ClusterOutput;
-    rawResults?: AnalysisResult[];
-    extractedConcepts?: ExtractedConcepts[];
-  };
 };
 
 const colorMap: { [key: string]: string } = {
