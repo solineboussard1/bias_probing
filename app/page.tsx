@@ -383,8 +383,8 @@ export default function Home() {
       }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
   
       // Validate API key presence
-      if (!userApiKeys.openai && !userApiKeys.anthropic && !userApiKeys.huggingface) {
-        toast.error('Please provide at least one API key.');
+      if (!userApiKeys.openai && !userApiKeys.huggingface) {
+        toast.error('Please provide at least HuggingFace and OpenAI API key.');
         return;
       }
 
@@ -845,7 +845,7 @@ export default function Home() {
     } finally {
       setIsLoadingConceptsFile(false);
       if (event.target) {
-        event.target.value = ''; // Reset file input
+        event.target.value = ''; 
       }
     }
   }, []);
@@ -889,7 +889,7 @@ export default function Home() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setShowKeys(!showKeys)}
-                        className="h-full w-full"
+                        className="h-full/2 w-full/2"
                       >
                         {showKeys ? (
                           <Eye className="h-4 w-4" />
@@ -959,9 +959,19 @@ export default function Home() {
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
-
-      {/* Main Content - Update the classes */}
+      
+      {/* Main Content */}
       <div className="flex-1 overflow-auto">
+          {/* Conditional API Key Banner */}
+          {apiKeys.every(api => !api.key) && (
+          <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-4 rounded-lg text-center m-4">
+            <p>Please add your API key to get started.</p>
+            <p>
+              Tip: Press <kbd className="font-mono bg-gray-200 p-1 rounded">⌘E</kbd> or click the sidebar button to reveal the API keys panel.
+            </p>
+          </div>
+        )}
+
         <div className={`
           ${(conceptData.concepts.size > 0 || ldaResults || embeddingsResults.length > 0)
             ? 'flex flex-col sm:flex-row gap-6 h-[100dvh] overflow-hidden'
