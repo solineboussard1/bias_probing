@@ -1605,11 +1605,11 @@ export default function Home() {
                                     Object.fromEntries(
                                       Array.from(value.entries()).map(([subgroup, dist]) => [
                                         subgroup,
-                                        Array.from(dist.entries()).map(([_, count]) => [count]),
+                                        Array.from(dist.values()).map(count => [count]), 
                                       ])
                                     ),
                                   ])
-                                ),                                
+                                ),                              
                                 clusters: {
                                   all: conceptData.clusters?.all?.map((cluster) => ({
                                     id: cluster.id,
