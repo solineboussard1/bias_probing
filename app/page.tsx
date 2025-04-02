@@ -1599,7 +1599,17 @@ export default function Home() {
                             <ConceptVisualizations
                               conceptData={{
                                 concepts: conceptData.concepts,
-                                demographicDistributions: conceptData.demographicDistributions,
+                                demographicDistributions: Object.fromEntries(
+                                  Array.from(conceptData.demographicDistributions.entries()).map(([key, value]) => [
+                                    key,
+                                    Object.fromEntries(
+                                      Array.from(value.entries()).map(([subgroup, dist]) => [
+                                        subgroup,
+                                        Array.from(dist.entries()).map(([_, count]) => [count]),
+                                      ])
+                                    ),
+                                  ])
+                                ),                                
                                 clusters: {
                                   all: conceptData.clusters?.all?.map((cluster) => ({
                                     id: cluster.id,
