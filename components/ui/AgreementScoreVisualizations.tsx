@@ -26,6 +26,7 @@ type HeatmapViewProps = {
   yLabel: string; 
 };
 
+
 const CompactHeatmapView = ({ tableData, title, xLabel, yLabel }: HeatmapViewProps) => {
   const maxVal = Math.max(...tableData.table.flat());
 
@@ -103,7 +104,7 @@ const CompactHeatmapView = ({ tableData, title, xLabel, yLabel }: HeatmapViewPro
 type CustomShapeProps = {
   cx: number;
   cy: number;
-  payload: AgreementVisualizationPoint;
+  payload: AgreementVisualizationPoint & { aggregateAgreement: number };
 };
 
 const CombinedScatterPlot = ({ data }: { data: AgreementVisualizationPoint[] }) => {
@@ -162,7 +163,7 @@ const CombinedScatterPlot = ({ data }: { data: AgreementVisualizationPoint[] }) 
             shape={(props: unknown) => {
               const customProps = props as CustomShapeProps;
               const { cx, cy, payload } = customProps;
-              const color = getColor((payload as any).aggregateAgreement);
+              const color = getColor(payload.aggregateAgreement);
               return (
                 <circle cx={cx} cy={cy} r={5} fill={color} stroke="#333" strokeWidth={1} />
               );

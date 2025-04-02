@@ -17,7 +17,7 @@ const getColorForAttribute = (attribute: string) => {
   return `rgba(${r}, ${g}, ${b}, 0.6)`;
 };
 
-export function LDAVisualizations({ ldaResults, analysisResults }: LDAVisualizationsProps) {
+export function LDAVisualizations({ ldaResults }: LDAVisualizationsProps) {
   const overallChartRef = useRef<HTMLCanvasElement>(null);
   const demographicChartRef = useRef<HTMLCanvasElement>(null);
 

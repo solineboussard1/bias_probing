@@ -74,7 +74,6 @@ export async function POST(req: Request): Promise<Response> {
           results: AnalysisResult[];
           userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>;
         };
-        console.log('Received results:', {results, userApiKeys});
         if (!results || !Array.isArray(results)) {
           return NextResponse.json({ error: "'results' is missing or not an array" }, { status: 400 });
         }
@@ -100,8 +99,6 @@ export async function POST(req: Request): Promise<Response> {
             totalResponses += prompt.responses.length;
           });
         });
-
-        console.log(`Starting extraction for ${totalResponses} total responses`);
 
         // Collect every prompt's concepts into allConcepts.
         const allConcepts: string[] = [];

@@ -30,9 +30,15 @@ export async function POST(request: NextRequest): Promise<Response> {
         'Connection': 'keep-alive',
       },
     });
+    
+    type ProgressUpdate = {
+      type: string;
+      message?: string;
+    };
+    
 
     // Run analysis pipeline passing the userApiKeys along with other params
-    runAnalysisPipeline(params, params.userApiKeys, async (update: any) => {
+    runAnalysisPipeline(params, params.userApiKeys, async (update: ProgressUpdate) => {
       await writer.write(encoder.encode(`data: ${JSON.stringify(update)}\n\n`));
     }).then(async (result) => {
       await writer.write(encoder.encode(`data: ${JSON.stringify({ type: 'complete', result })}\n\n`));

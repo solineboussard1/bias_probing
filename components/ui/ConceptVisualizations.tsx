@@ -18,7 +18,7 @@ export type ClusterOutput = {
   demographics: { [key: string]: ClusterData[] };
 };
 
-type DemographicDistributions = { [key: string]: any };
+type DemographicDistributions = { [key: string]: number[] };
 
 type ConceptVisualizationsProps = {
   conceptData: {

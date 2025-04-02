@@ -84,7 +84,7 @@ export type LDATopicResult = {
 };
 
 export type LDAResult = {
-  doc_topic_distributions: any;
+  doc_topic_distributions: [];
   topics: LDATopicResult[];
   distributions: number[][];
   demographicDistributions?: { [key: string]: number[][] }; 
@@ -145,7 +145,6 @@ export type ClusterOutput = {
 
 export interface LDAVisualizationsProps {
   ldaResults: LDAResult;
-  analysisResults: AnalysisResult[];
 }
 
 

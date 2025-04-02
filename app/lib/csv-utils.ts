@@ -321,9 +321,6 @@ export function createMergedAnalysisCSV(
         const dominantTopic = ldaResults.topics[dominantTopicIndex];
         const topicProbability = topicDistribution[dominantTopicIndex];
         const topKeywords = dominantTopic.words.slice(0, 5).join(', ');
-        const topicDescription = ldaResults.topics
-          .map((topic, idx) => `Topic ${topic.topic_id} (${topicDistribution[idx].toFixed(3)})`)
-          .join('; ');
 
         // Find a matching embedding cluster, if any.
         const embeddingCluster = embeddingsResults.find(c =>

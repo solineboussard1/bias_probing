@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from 'sonner';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent, } from "@/components/ui/tooltip";
 import { useHotkeys } from 'react-hotkeys-hook';
-import { AnalysisResult, ClusterOutput, ClusterData, PromptResult, LDAResult, AgreementScores, ExtractedConcepts, AllResults } from './types/pipeline';
+import { AnalysisResult, ClusterOutput, PromptResult, LDAResult, AgreementScores, ExtractedConcepts, AllResults } from './types/pipeline';
 import { ConceptVisualizations } from '@/components/ui/ConceptVisualizations';
 import { LDAVisualizations } from '@/components/ui/LDAVisualizations';
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { EmbeddingsVisualizations } from "@/components/ui/EmbeddingsVisualizatio
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AgreementScoreVisualizations } from "@/components/ui/AgreementScoreVisualizations";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from "@/components/ui/dropdown-menu";
-import { createLDAExtractionCSV, downloadCSV, createMergedAnalysisCSV } from "@/app/lib/csv-utils";
+import { downloadCSV, createMergedAnalysisCSV } from "@/app/lib/csv-utils";
 import { PipelineParams, SelectedParams, PaginationState, ExtractionProgress, SavedAnalysis, DEFAULT_PIPELINE_PARAMS } from "@/app/lib/constants";
 
 const ITEMS_PER_PAGE = 5;
@@ -1670,7 +1670,7 @@ export default function Home() {
                             ))}
                           </div>
                           {/* Visualizations */}
-                          <LDAVisualizations ldaResults={ldaResults} analysisResults={analysisResults} />
+                          <LDAVisualizations ldaResults={ldaResults}  />
                         </div>
                       )}
                     </TabsContent>
