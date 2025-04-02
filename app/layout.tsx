@@ -5,7 +5,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "SpiceX",
+  title: "LLM Bias Probe",
   description: "a tool for LLM bias-probing framework",
 };
 

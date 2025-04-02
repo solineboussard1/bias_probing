@@ -101,6 +101,7 @@ def calculate_agreement_scores():
         
         # Drop rows with missing critical labels.
         grouped_df = grouped_df.dropna(subset=['Concept_Cluster', 'Dominant_Topic', 'Embeddings_Cluster'])
+        print(grouped_df.isnull().sum(), file=sys.stderr)  # Print count of NaNs
 
         # Preserve original categories (as strings) for heatmap labels.
         concept_categories = pd.Categorical(grouped_df['Concept_Cluster']).categories.tolist()
@@ -158,7 +159,8 @@ def calculate_agreement_scores():
 if __name__ == "__main__":
     try:
         results = calculate_agreement_scores()
-        print(json.dumps(results, cls=NumpyJSONEncoder))
+        cleaned_results = json.loads(json.dumps(results, cls=NumpyJSONEncoder))
+        print(json.dumps(cleaned_results))
     except Exception as e:
         error_details = {
             "error": f"Failed to calculate agreement scores: {str(e)}",

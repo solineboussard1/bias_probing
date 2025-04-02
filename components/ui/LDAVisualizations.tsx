@@ -72,7 +72,7 @@ export function LDAVisualizations({ ldaResults }: LDAVisualizationsProps) {
     // --- Overall Average Topic Distribution Chart ---
     const overallCtx = overallChartRef.current?.getContext('2d');
     if (overallCtx && overallAverages.length > 0) {
-      const labels = ldaResults.topics.map((_, idx) => `Topic ${idx + 1}`);
+      const labels = ldaResults.topics.map((_, idx) => `Topic ${idx}`);
       new Chart(overallCtx, {
         type: 'bar',
         data: {
@@ -109,7 +109,7 @@ export function LDAVisualizations({ ldaResults }: LDAVisualizationsProps) {
         return;
       }
 
-      const labels = ldaResults.topics.map((_, idx) => `Topic ${idx + 1}`);
+      const labels = ldaResults.topics.map((_, idx) => `Topic ${idx}`);
       const datasets = Object.entries(subgroupData).map(([subgroup, avgVector]) => ({
         label: subgroup,
         data: avgVector as number[], 

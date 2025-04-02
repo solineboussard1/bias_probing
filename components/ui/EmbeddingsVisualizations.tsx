@@ -43,7 +43,7 @@ export function EmbeddingsVisualizations({ results, analysisResults }: Embedding
 
     return (
         <div className="space-y-6">
-            {/* Add download button at the top */}
+            {/* Download Button */}
             <div className="flex justify-end">
                 <Button
                     onClick={() => {
@@ -67,57 +67,57 @@ export function EmbeddingsVisualizations({ results, analysisResults }: Embedding
                 <h4 className="font-medium mb-4">PCA Visualization of Embeddings</h4>
                 <div style={{ height: '400px' }}>
                     <ResponsiveScatterPlot
-                    data={scatterData}
-                    margin={{ top: 20, right: 20, bottom: 70, left: 70 }}
-                    xScale={{ type: 'linear', min: 'auto', max: 'auto' }}
-                    yScale={{ type: 'linear', min: 'auto', max: 'auto' }}
-                    axisTop={null}
-                    axisRight={null}
-                    axisBottom={{
-                        tickSize: 5,
-                        tickPadding: 5,
-                        tickRotation: 0,
-                        legend: 'PC1',
-                        legendPosition: 'middle',
-                        legendOffset: 46
-                    }}
-                    axisLeft={{
-                        tickSize: 5,
-                        tickPadding: 5,
-                        tickRotation: 0,
-                        legend: 'PC2',
-                        legendPosition: 'middle',
-                        legendOffset: -60
-                    }}
-                    colors={{ scheme: 'category10' }}
-                    tooltip={({ node }) => {
-                        // Extract cluster information for the tooltip
-                        const cluster = results.find(c => `Cluster ${c.cluster_id + 1}` === node.serieId);
-                        if (!cluster) return null;
-
-                        // Prepare the demographic distribution string, removing 'default:' prefix
-                        const distribution = Object.entries(cluster.distribution)
-                        .map(([key, value]) => {
-                            const label = key.startsWith('default:') ? key.replace('default:', '') : key; // Remove 'default:' prefix
-                            return `<strong>${label}:</strong> ${value}`;
-                        })
-                        .join('<br />');
-
-                        return (
-                        <div className="bg-white p-2 shadow-lg rounded-lg border text-sm">
-                            <strong className="block">{node.serieId}</strong>
-                            <br />
-                            <strong>Distribution:</strong>
-                            <br />
-                            <div dangerouslySetInnerHTML={{ __html: distribution }} />
-                        </div>
-                        );
-                    }}
+                        data={scatterData}
+                        margin={{ top: 20, right: 20, bottom: 70, left: 70 }}
+                        xScale={{ type: 'linear', min: 'auto', max: 'auto' }}
+                        yScale={{ type: 'linear', min: 'auto', max: 'auto' }}
+                        axisTop={null}
+                        axisRight={null}
+                        axisBottom={{
+                            tickSize: 5,
+                            tickPadding: 5,
+                            tickRotation: 0,
+                            legend: 'PC1',
+                            legendPosition: 'middle',
+                            legendOffset: 46
+                        }}
+                        axisLeft={{
+                            tickSize: 5,
+                            tickPadding: 5,
+                            tickRotation: 0,
+                            legend: 'PC2',
+                            legendPosition: 'middle',
+                            legendOffset: -60
+                        }}
+                        colors={{ scheme: 'category10' }}
+                        tooltip={({ node }) => {
+                            // Find the matching cluster using the series ID.
+                            const cluster = results.find(c => `Cluster ${c.cluster_id + 1}` === node.serieId);
+                            if (!cluster) return null;
+                            
+                            // Clean up the distribution labels by removing 'default:', brackets, and quotes.
+                            const distribution = Object.entries(cluster.distribution)
+                                .map(([key, value]) => {
+                                    const label = key.replace(/default:|\[|\]|'/g, '');
+                                    return `<strong>${label}:</strong> ${value}`;
+                                })
+                                .join('<br />');
+                            
+                            return (
+                                <div className="bg-white p-2 shadow-lg rounded-lg border text-sm">
+                                    <strong className="block">{node.serieId}</strong>
+                                    <br />
+                                    <strong>Distribution:</strong>
+                                    <br />
+                                    <div dangerouslySetInnerHTML={{ __html: distribution }} />
+                                </div>
+                            );
+                        }}
                     />
                 </div>
-                </Card>
+            </Card>
 
-            {/* Existing cluster cards */}
+            {/* Cluster Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {results.map((cluster) => (
                     <Card key={cluster.cluster_id} className="p-4">
@@ -130,11 +130,15 @@ export function EmbeddingsVisualizations({ results, analysisResults }: Embedding
                             <div>
                                 <h5 className="text-sm font-medium mb-2">Distribution:</h5>
                                 <div className="flex flex-wrap gap-2">
-                                    {Object.entries(cluster.distribution).map(([key, value]) => (
-                                        <Badge key={key} variant="outline">
-                                            {key}: {value}
-                                        </Badge>
-                                    ))}
+                                    {Object.entries(cluster.distribution).map(([key, value]) => {
+                                        // Remove 'default:' prefix, brackets and quotes from the key.
+                                        const cleanedKey = key.replace(/default:|\[|\]|'/g, '');
+                                        return (
+                                            <Badge key={key} variant="outline">
+                                                {cleanedKey}: {value}
+                                            </Badge>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -244,4 +248,4 @@ export function EmbeddingsVisualizations({ results, analysisResults }: Embedding
             </div>
         </div>
     );
-} 
+}

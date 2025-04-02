@@ -46,7 +46,7 @@ def extract_topics(responses, candidate_topics=range(5, 12)):
     
     # Grid search for the best number of topics based on coherence
     for n_topics in candidate_topics:
-        lda = LatentDirichletAllocation(n_components=n_topics, random_state=42, max_iter=10, learning_method='online')
+        lda = LatentDirichletAllocation(n_components=n_topics, random_state=42, max_iter=25, learning_method='online')
         doc_topics = lda.fit_transform(doc_term_matrix)
         
         topics = []

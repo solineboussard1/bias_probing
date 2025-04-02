@@ -171,12 +171,12 @@ export default function Home() {
       toast.error('Please select a model and at least one primary issue');
       return;
     }
-  
+
     const userApiKeys = apiKeys.reduce((acc, { provider, key }) => {
       acc[provider as 'openai' | 'anthropic' | 'huggingface'] = key;
       return acc;
     }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
-  
+
     // Map models to their providers
     const modelProviderMap: Record<string, 'openai' | 'anthropic' | 'huggingface'> = {
       'gpt-4o': 'openai',
@@ -186,27 +186,33 @@ export default function Home() {
       'mistral-7b': 'huggingface',
       'llama-3-8b': 'huggingface',
     };
-  
+
     const provider = modelProviderMap[selectedParams.model];
     if (!provider) {
       toast.error('Selected model is not supported.');
       return;
     }
-  
+
     if (!userApiKeys[provider]) {
       toast.error(`Please provide your ${provider} API key`);
       return;
     }
-  
+
     const payload = {
       ...selectedParams,
       userApiKeys,
     };
-  
+
     setIsAnalyzing(true);
     setProgress(null);
     setConceptData({ concepts: new Map(), demographicDistributions: new Map() });
-  
+    setLdaResults(null);
+    setEmbeddingsResults([]);
+    setAgreementData(null);
+    setAnalysisResults([]);
+    
+
+
     try {
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -215,30 +221,30 @@ export default function Home() {
         },
         body: JSON.stringify(payload),
       });
-  
+
       if (!response.ok) throw new Error('Analysis request failed');
-  
+
       const reader = response.body?.getReader();
       if (!reader) throw new Error('Failed to get response reader');
-  
+
       const decoder = new TextDecoder();
       let results: AnalysisResult[] = [];
       let buffer = ''; // Add buffer for incomplete chunks
-  
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-  
+
         try {
           buffer += decoder.decode(value, { stream: true }); // Use streaming mode
           const lines = buffer.split('\n');
           buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
-  
+
           for (const line of lines) {
             if (line.trim().startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(5));
-  
+
                 if (data.type === 'complete') {
                   results = [...results, data.result];
                   setAnalysisResults(prev => [...prev, data.result]);
@@ -266,7 +272,7 @@ export default function Home() {
           continue;
         }
       }
-  
+
       // Process any remaining data in buffer
       if (buffer.trim()) {
         try {
@@ -279,14 +285,14 @@ export default function Home() {
           console.error('Failed to parse final buffer:', parseError);
         }
       }
-  
+
       // Only proceed with concept extraction if we have results
       if (results.length > 0) {
         await extractConcepts(results);
       } else {
         throw new Error('No valid results received from analysis');
       }
-  
+
     } catch (error) {
       console.error('Pipeline failed:', error);
       toast.error('Pipeline failed. Please try again.', {
@@ -297,7 +303,7 @@ export default function Home() {
       setProgress(null);
     }
   };
-  
+
 
   const saveAnalysis = () => {
     if (analysisResults.length === 0) return;
@@ -381,7 +387,7 @@ export default function Home() {
         acc[provider as 'openai' | 'anthropic' | 'huggingface'] = key;
         return acc;
       }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
-  
+
       // Validate API key presence
       if (!userApiKeys.openai && !userApiKeys.huggingface) {
         toast.error('Please provide at least HuggingFace and OpenAI API key.');
@@ -399,7 +405,7 @@ export default function Home() {
       const llmPromise = fetch('/api/llm-extract-concepts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({results, userApiKeys}),
+        body: JSON.stringify({ results, userApiKeys }),
         signal: llmAbortController.signal,
       });
 
@@ -591,7 +597,7 @@ export default function Home() {
         acc[provider as 'openai' | 'anthropic' | 'huggingface'] = key;
         return acc;
       }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
-  
+
       // Validate API key presence
       if (!userApiKeys.openai && !userApiKeys.anthropic && !userApiKeys.huggingface) {
         toast.error('Please provide at least one API key.');
@@ -601,7 +607,7 @@ export default function Home() {
       const response = await fetch('/api/embeddings-extract-concepts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({results, userApiKeys})
+        body: JSON.stringify({ results, userApiKeys })
       });
 
       if (!response.ok) {
@@ -716,15 +722,26 @@ export default function Home() {
   };
 
   // Call calculateAgreementScores when all three extraction methods are complete
-  useEffect(() => {
-    if (
-      conceptData.concepts.size > 0 &&
-      ldaResults &&
-      embeddingsResults.length > 0
-    ) {
-      calculateAgreementScores();
-    }
-  }, [conceptData.concepts.size, ldaResults, embeddingsResults.length]);
+  const [isDataReady, setIsDataReady] = useState(false);
+
+useEffect(() => {
+  const allDataPresent =
+    conceptData.concepts.size > 0 &&
+    ldaResults !== null &&
+    embeddingsResults.length > 0;
+
+  if (allDataPresent) {
+    setIsDataReady(true);
+  }
+}, [conceptData.concepts.size, ldaResults, embeddingsResults.length]);
+
+useEffect(() => {
+  if (isDataReady) {
+    calculateAgreementScores();
+    setIsDataReady(false);
+  }
+}, [isDataReady]);
+
 
   const handleDownloadResults = () => {
     try {
@@ -845,7 +862,7 @@ export default function Home() {
     } finally {
       setIsLoadingConceptsFile(false);
       if (event.target) {
-        event.target.value = ''; 
+        event.target.value = '';
       }
     }
   }, []);
@@ -863,7 +880,7 @@ export default function Home() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Slice className="h-4 w-4" />
-                  <h2 className="font-semibold tracking-tight">SpiceX</h2>
+                  <h2 className="font-semibold tracking-tight">LLM Bias Probing</h2>
                 </div>
                 <div className="flex items-center gap-1">
                   <kbd className="text-[10px] font-mono px-1 py-0.5 border rounded bg-muted">⌘E</kbd>
@@ -959,11 +976,11 @@ export default function Home() {
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
-      
+
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-          {/* Conditional API Key Banner */}
-          {apiKeys.every(api => !api.key) && (
+        {/* Conditional API Key Banner */}
+        {apiKeys.every(api => !api.key) && (
           <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-4 rounded-lg text-center m-4">
             <p>Please add your API key to get started.</p>
             <p>
@@ -977,7 +994,7 @@ export default function Home() {
             ? 'flex flex-col sm:flex-row gap-6 h-[100dvh] overflow-hidden'
             : 'flex justify-center p-6 min-h-[100dvh]'}
         `}>
-          {/* Configuration and Analysis Results - Update the classes */}
+          {/* Configuration and Analysis Results*/}
           <div className={`
             ${(conceptData.concepts.size > 0 || ldaResults || embeddingsResults.length > 0)
               ? 'w-full sm:flex-[0.8] p-4 sm:p-6 overflow-auto'
@@ -1512,15 +1529,9 @@ export default function Home() {
 
           {/* Right Column - Concept Extraction Results */}
           {(conceptData.concepts.size > 0 || ldaResults || embeddingsResults.length > 0) && (
-            <div className="
-              flex-1 
-              border-t sm:border-t-0 sm:border-l 
-              pt-4 sm:pt-0 sm:pl-6 
-              flex flex-col 
-              h-[auto] sm:h-[100dvh] 
-              overflow-hidden
-            ">
+            <div className="flex-1 border-t sm:border-t-0 sm:border-l pt-4 sm:pt-0 sm:pl-6 flex flex-col h-[auto] sm:h-[100dvh] overflow-hidden">
               <div className="flex flex-col h-full">
+                {/* Header with title, download buttons and progress bar */}
                 <div className="p-4 sm:p-6 pb-4">
                   <div className="border-b pb-1 mb-4">
                     <div className="flex justify-between items-center">
@@ -1574,10 +1585,9 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-
                   <ExtractionProgressDisplay />
                 </div>
-
+                {/* Tabs Container */}
                 <div className="flex-1 min-h-0">
                   <Tabs defaultValue="llm" className="w-full h-full flex flex-col">
                     <div className="px-4 sm:px-6">
@@ -1589,89 +1599,98 @@ export default function Home() {
                       </TabsList>
                     </div>
 
-                    {/* LLM Concepts Tab - Mobile optimized */}
+                    {/* LLM Concepts Tab */}
                     <TabsContent value="llm" className="flex-1 overflow-y-auto px-4 sm:px-6 min-h-0">
                       {conceptData.concepts.size > 0 && (
-                        <div className="space-y-6 pb-6">
-                          <div className="sm:hidden"> {/* Mobile-only view */}
-                            <div className="space-y-4">
-                              {Array.from(conceptData.concepts.entries()).map(([concept, count]) => (
-                                <Card key={concept} className="p-4">
-                                  <div className="flex justify-between items-center">
-                                    <span className="font-medium">{concept}</span>
-                                    <Badge>{count}</Badge>
-                                  </div>
-                                </Card>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="hidden sm:block"> {/* Desktop-only view */}
-                            <ConceptVisualizations
-                              conceptData={{
-                                concepts: conceptData.concepts,
-                                demographicDistributions: Object.fromEntries(
-                                  Array.from(conceptData.demographicDistributions.entries()).map(([key, value]) => [
-                                    key,
-                                    Object.fromEntries(
-                                      Array.from(value.entries()).map(([subgroup, dist]) => [
-                                        subgroup,
-                                        Array.from(dist.values()).map(count => [count]), 
+                        <>
+                          {conceptData.clusters ? (
+                            <div className="space-y-6 pb-6">
+                              {/* Mobile view */}
+                              <div className="sm:hidden">
+                                <div className="space-y-4">
+                                  {Array.from(conceptData.concepts.entries()).map(([concept, count]) => (
+                                    <Card key={concept} className="p-4">
+                                      <div className="flex justify-between items-center">
+                                        <span className="font-medium">{concept}</span>
+                                        <Badge>{count}</Badge>
+                                      </div>
+                                    </Card>
+                                  ))}
+                                </div>
+                              </div>
+                              {/* Desktop view */}
+                              <div className="hidden sm:block">
+                                <ConceptVisualizations
+                                  conceptData={{
+                                    concepts: conceptData.concepts,
+                                    demographicDistributions: Object.fromEntries(
+                                      Array.from(conceptData.demographicDistributions.entries()).map(([key, value]) => [
+                                        key,
+                                        Object.fromEntries(
+                                          Array.from(value.entries()).map(([subgroup, dist]) => [
+                                            subgroup,
+                                            Array.from(dist.values()).map(count => [count]),
+                                          ])
+                                        ),
                                       ])
                                     ),
-                                  ])
-                                ),                              
-                                clusters: {
-                                  all: conceptData.clusters?.all?.map((cluster) => ({
-                                    id: cluster.id,
-                                    concepts: cluster.concepts,
-                                    frequency: cluster.frequency,
-                                    label: cluster.label,
-                                    total_frequency:
-                                      cluster.total_frequency !== undefined
-                                        ? cluster.total_frequency
-                                        : Array.isArray(cluster.frequency)
-                                          ? cluster.frequency.reduce((a, b) => a + b, 0)
-                                          : 0,
-                                  })) ?? [],
-                                  demographics: conceptData.clusters?.demographics
-                                    ? Object.fromEntries(
-                                      Object.entries(conceptData.clusters.demographics).map(([demo, clusters]) => [
-                                        demo,
-                                        Array.isArray(clusters)
-                                          ? clusters.map((cluster) => ({
-                                            id: cluster.id,
-                                            concepts: cluster.concepts,
-                                            frequency: cluster.frequency,
-                                            label: cluster.label ? cluster.label : cluster.id.toString(),
-                                            total_frequency:
-                                              cluster.total_frequency !== undefined
-                                                ? cluster.total_frequency
-                                                : Array.isArray(cluster.frequency)
-                                                  ? cluster.frequency.reduce((a, b) => a + b, 0)
-                                                  : 0,
-                                          }))
-                                          : []
-                                      ])
-                                    )
-                                    : {},
-                                },
-                                rawResults: conceptData.rawResults,
-                                extractedConcepts: conceptData.extractedConcepts,
-                              }}
-                            />
-
-                          </div>
-                        </div>
+                                    clusters: {
+                                      all: conceptData.clusters?.all?.map((cluster) => ({
+                                        id: cluster.id,
+                                        concepts: cluster.concepts,
+                                        frequency: cluster.frequency,
+                                        label: cluster.label,
+                                        total_frequency:
+                                          cluster.total_frequency !== undefined
+                                            ? cluster.total_frequency
+                                            : Array.isArray(cluster.frequency)
+                                              ? cluster.frequency.reduce((a, b) => a + b, 0)
+                                              : 0,
+                                      })) ?? [],
+                                      demographics: conceptData.clusters?.demographics
+                                        ? Object.fromEntries(
+                                          Object.entries(conceptData.clusters.demographics).map(([demo, clusters]) => [
+                                            demo,
+                                            Array.isArray(clusters)
+                                              ? clusters.map((cluster) => ({
+                                                id: cluster.id,
+                                                concepts: cluster.concepts,
+                                                frequency: cluster.frequency,
+                                                label: cluster.label ? cluster.label : cluster.id.toString(),
+                                                total_frequency:
+                                                  cluster.total_frequency !== undefined
+                                                    ? cluster.total_frequency
+                                                    : Array.isArray(cluster.frequency)
+                                                      ? cluster.frequency.reduce((a, b) => a + b, 0)
+                                                      : 0,
+                                              }))
+                                              : []
+                                          ])
+                                        )
+                                        : {},
+                                    },
+                                    rawResults: conceptData.rawResults,
+                                    extractedConcepts: conceptData.extractedConcepts,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex justify-center items-center h-full">
+                              <p>Processing data... Please wait.</p>
+                            </div>
+                          )}
+                        </>
                       )}
                     </TabsContent>
                     <TabsContent value="lda" className="flex-1 overflow-y-auto px-4 sm:px-6 min-h-0">
-                      {ldaResults && analysisResults && (
+                      {ldaResults && analysisResults ? (
                         <div className="space-y-6 pb-6">
                           {/* Existing Topics Display */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {ldaResults.topics.map((topic) => (
                               <Card key={topic.topic_id} className="p-4">
-                                <h4 className="font-medium mb-2">Topic {topic.topic_id + 1}</h4>
+                                <h4 className="font-medium mb-2">Topic {topic.topic_id}</h4>
                                 <div className="space-y-2">
                                   <div className="flex flex-wrap gap-2">
                                     {topic.words.map((word, idx) => (
@@ -1690,10 +1709,15 @@ export default function Home() {
                             ))}
                           </div>
                           {/* Visualizations */}
-                          <LDAVisualizations ldaResults={ldaResults}  />
+                          <LDAVisualizations ldaResults={ldaResults} />
+                        </div>
+                      ) : (
+                        <div className="flex justify-center items-center h-full">
+                          <p>Processing data... Please wait.</p>
                         </div>
                       )}
                     </TabsContent>
+
 
 
                     {/* Embeddings Tab - Mobile optimized */}
