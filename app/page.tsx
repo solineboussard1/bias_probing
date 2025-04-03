@@ -551,7 +551,6 @@ export default function Home() {
                     break;
                   case 'lda_concepts':
                     setLdaResults({
-                      doc_topic_distributions: data.distributions,
                       topics: data.topics,
                       distributions: data.distributions,
                       demographicDistributions: data.demographicDistributions,
@@ -766,7 +765,12 @@ useEffect(() => {
             extractedConcepts: conceptData.extractedConcepts || [],
             clusters: conceptData.clusters
           },
-          lda: ldaResults,
+          lda: ldaResults ? {
+            topics: ldaResults.topics,
+            distributions: ldaResults.distributions,
+            demographicDistributions: ldaResults.demographicDistributions,
+            error: ldaResults.error,
+          } : null,
           embeddings: embeddingsResults
         }
       };
@@ -847,12 +851,16 @@ useEffect(() => {
         clusters: allResults.conceptResults.llm.clusters
           ? {
             all: allResults.conceptResults.llm.clusters.all,
-            demographics: {}
+            demographics: allResults.conceptResults.llm.clusters.demographics
           }
           : undefined,
         rawResults: allResults.analysisResults,
         extractedConcepts: allResults.conceptResults.llm.extractedConcepts,
       });
+
+      setLdaResults(allResults.conceptResults.lda);
+      setEmbeddingsResults(allResults.conceptResults.embeddings);
+      calculateAgreementScores();
 
     } catch (error) {
       console.error('File processing failed:', error);

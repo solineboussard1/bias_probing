@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import DBSCAN, KMeans
 from sklearn.metrics.pairwise import cosine_similarity
 import json
 import sys
@@ -21,7 +21,7 @@ def normalize_concept(concept: str) -> str:
     lemmas = [lemmatizer.lemmatize(t) for t in tokens]
     return " ".join(lemmas)
 
-def process_clustering(concept_frequencies, eps=0.15, min_samples=1, min_freq_threshold=3):
+def process_clustering(concept_frequencies, eps=0.15, min_samples=1, min_freq_threshold=3, max_clusters=20):
     if not concept_frequencies:
         return [], {}
 
@@ -37,7 +37,7 @@ def process_clustering(concept_frequencies, eps=0.15, min_samples=1, min_freq_th
     feature_matrix = tfidf_matrix.toarray()
 
     try:
-        # Run DBSCAN on the full repeated list.
+        # First, run DBSCAN on the full repeated list.
         dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
         dbscan.fit(feature_matrix)
         labels = dbscan.labels_
@@ -78,8 +78,23 @@ def process_clustering(concept_frequencies, eps=0.15, min_samples=1, min_freq_th
                 indices = clusters_dict[best_label]
                 vectors = feature_matrix[indices]
                 cluster_centroids[best_label] = np.mean(vectors, axis=0)
-                # Also remove the small cluster's centroid.
+                # Remove the small cluster's centroid.
                 del cluster_centroids[small_label]
+
+        # Check if we have more clusters than max_clusters.
+        if len(clusters_dict) > max_clusters:
+            # Recluster the feature matrix with KMeans to force exactly max_clusters.
+            kmeans = KMeans(n_clusters=max_clusters, random_state=0)
+            kmeans_labels = kmeans.fit_predict(feature_matrix)
+            clusters_dict = {}
+            for idx, label in enumerate(kmeans_labels):
+                clusters_dict.setdefault(label, []).append(idx)
+            # Optionally, recalc centroids if you need them for further processing.
+            cluster_centroids = {}
+            for label, indices in clusters_dict.items():
+                vectors = feature_matrix[indices]
+                centroid = np.mean(vectors, axis=0)
+                cluster_centroids[label] = centroid
 
         # Build final clusters from clusters_dict.
         clusters = []
@@ -88,7 +103,7 @@ def process_clustering(concept_frequencies, eps=0.15, min_samples=1, min_freq_th
             concept_counts = Counter(cluster_list)
             sorted_items = sorted(concept_counts.items(), key=lambda x: x[1], reverse=True)
             cluster_data = {
-                'id': label,  # original DBSCAN label
+                'id': label,  # original label from DBSCAN or KMeans
                 'concepts': [item[0] for item in sorted_items],
                 'frequency': [item[1] for item in sorted_items],
                 'total_frequency': len(cluster_list)
@@ -135,7 +150,7 @@ def cluster_concepts(input_data):
     # Process demographic-specific clusters using the overall mapping.
     demographic_clusters = {}
     for demo, demo_concepts in demographic_data.items():
-    # Initialize frequency count for each overall cluster id.
+        # Initialize frequency count for each overall cluster id.
         cluster_freq = {cluster['id']: 0 for cluster in all_clusters}
         
         for concept, freq in demo_concepts:
@@ -157,11 +172,9 @@ def cluster_concepts(input_data):
             demo_clusters.append(demo_cluster)
         demographic_clusters[demo] = demo_clusters
 
-
     return {
         "all": all_clusters,
-        "demographics": demographic_clusters,
-        "demographicDistributions": demographic_clusters  
+        "demographics": demographic_clusters
     }
 
 if __name__ == "__main__":
