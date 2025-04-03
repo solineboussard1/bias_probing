@@ -5,63 +5,19 @@ import { AnalysisResult, LDAResult } from '@/app/types/pipeline';
 
 export async function POST(req: Request): Promise<Response> {
   const encoder = new TextEncoder();
+
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        console.log('Starting LDA concept extraction...');
         const results: AnalysisResult[] = await req.json();
+        const responses = createResponseData(results);
 
-        function getDemographicCategory(demo: string): string | null {
-          const demoLower = demo.toLowerCase();
-          if (['woman', 'man', 'non-binary'].includes(demoLower)) return 'genders';
-          if (['young adult', 'middle-aged', 'elderly'].includes(demoLower)) return 'ages';
-          if (['asian', 'black', 'hispanic', 'white', 'other'].includes(demoLower)) return 'ethnicities';
-          if (['low income', 'middle income', 'high income'].includes(demoLower)) return 'socioeconomic';
-          return null;
-        }
+        sendSSE(controller, encoder, {
+          type: 'extraction_progress',
+          message: 'Starting LDA concept extraction',
+          progress: { processed: 0, total: responses.length },
+        });
 
-        const responses = results.flatMap(result =>
-          result.prompts.flatMap(prompt => {
-            let demographics: { category: string; value: string }[] = [];
-            if (prompt.metadata.demographics && prompt.metadata.demographics.length > 0) {
-              if (
-                prompt.metadata.demographics.length === 1 &&
-                prompt.metadata.demographics[0].toLowerCase() === 'baseline'
-              ) {
-                demographics = [{ category: 'baseline', value: 'baseline' }];
-              } else {
-                demographics = prompt.metadata.demographics.map(demo => {
-                  const demoLower = demo.toLowerCase();
-                  if (demoLower === 'baseline') {
-                    return { category: 'baseline', value: 'baseline' };
-                  }
-                  const category = getDemographicCategory(demo) || 'all';
-                  return { category, value: demo };
-                });
-              }
-            } else {
-              demographics = [{ category: 'baseline', value: 'baseline' }];
-            }
-
-            return prompt.responses.map(response => ({
-              text: response,
-              demographics
-            }));
-          })
-        );
-
-        // Send initial progress update.
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({
-              type: 'extraction_progress',
-              message: 'Starting LDA concept extraction',
-              progress: { processed: 0, total: responses.length }
-            })}\n\n`
-          )
-        );
-
-        // Run Python script.
         const pythonScript = path.join(process.cwd(), 'app', 'python', 'lda_extractor.py');
         const pythonProcess = spawn('python', [pythonScript]);
 
@@ -75,13 +31,10 @@ export async function POST(req: Request): Promise<Response> {
         });
 
         pythonProcess.stderr.on('data', (data) => {
-          console.error(`Python Error: ${data}`);
-          if (data.toString().toLowerCase().includes('error')) {
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ type: 'error', error: data.toString() })}\n\n`
-              )
-            );
+          const errorStr = data.toString();
+          console.error(`Python Error: ${errorStr}`);
+          if (errorStr.toLowerCase().includes('error')) {
+            sendSSE(controller, encoder, { type: 'error', error: errorStr });
           }
         });
 
@@ -90,60 +43,34 @@ export async function POST(req: Request): Promise<Response> {
             try {
               const ldaResults: LDAResult = JSON.parse(outputData);
               if (ldaResults.error) {
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ type: 'error', error: ldaResults.error })}\n\n`
-                  )
-                );
+                sendSSE(controller, encoder, { type: 'error', error: ldaResults.error });
               } else {
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({
-                      type: 'lda_concepts',
-                      topics: ldaResults.topics,
-                      distributions: ldaResults.distributions,
-                      demographicDistributions: ldaResults.demographicDistributions,
-                      progress: { processed: responses.length, total: responses.length }
-                    })}\n\n`
-                  )
-                );
-
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ type: 'complete', message: 'LDA concept extraction completed' })}\n\n`
-                  )
-                );
+                sendSSE(controller, encoder, {
+                  type: 'lda_concepts',
+                  topics: ldaResults.topics,
+                  distributions: ldaResults.distributions,
+                  demographicDistributions: ldaResults.demographicDistributions,
+                  progress: { processed: responses.length, total: responses.length },
+                });
+                sendSSE(controller, encoder, { type: 'complete', message: 'LDA concept extraction completed' });
               }
             } catch {
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ type: 'error', message: 'Failed to parse Python output' })}\n\n`
-                )
-              );
+              sendSSE(controller, encoder, { type: 'error', message: 'Failed to parse Python output' });
             }
           } else {
-            controller.enqueue(
-              encoder.encode(
-                JSON.stringify({
-                  type: 'error',
-                  message: 'Python process exited with non-zero code'
-                })
-              )
-            );
+            sendSSE(controller, encoder, { type: 'error', message: 'Python process exited with non-zero code' });
           }
           controller.close();
         });
-
       } catch (error) {
         console.error('Concept extraction failed:', error);
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({ type: 'error', message: error instanceof Error ? error.message : 'Unknown error' })}\n\n`
-          )
-        );
+        sendSSE(controller, encoder, {
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
         controller.close();
       }
-    }
+    },
   });
 
   return new NextResponse(stream, {
@@ -153,4 +80,38 @@ export async function POST(req: Request): Promise<Response> {
       'Connection': 'keep-alive',
     },
   });
+}
+
+function sendSSE(controller: ReadableStreamDefaultController, encoder: TextEncoder, data: object) {
+  controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+}
+
+function createResponseData(results: AnalysisResult[]): { text: string; demographics: { category: string; value: string }[] }[] {
+  return results.flatMap(result =>
+    result.prompts.flatMap(prompt => {
+      const demographics = extractDemographics(prompt.metadata.demographics);
+      return prompt.responses.map(response => ({
+        text: response,
+        demographics,
+      }));
+    })
+  );
+}
+
+function extractDemographics(demos?: string[]): { category: string; value: string }[] {
+  if (!demos || demos.length === 0) return [{ category: 'baseline', value: 'baseline' }];
+  if (demos.length === 1 && demos[0].toLowerCase() === 'baseline') return [{ category: 'baseline', value: 'baseline' }];
+  return demos.map(demo => {
+    const demoLower = demo.toLowerCase();
+    const category = getDemographicCategory(demoLower) || 'all';
+    return { category, value: demo };
+  });
+}
+
+function getDemographicCategory(demo: string): string | null {
+  if (['woman', 'man', 'non-binary'].includes(demo)) return 'genders';
+  if (['young adult', 'middle-aged', 'elderly'].includes(demo)) return 'ages';
+  if (['asian', 'black', 'hispanic', 'white', 'other'].includes(demo)) return 'ethnicities';
+  if (['low income', 'middle income', 'high income'].includes(demo)) return 'socioeconomic';
+  return null;
 }

@@ -58,15 +58,23 @@ export function generatePrompts(params: SelectedParams): string[] {
 
           // Adjust grammar for non-First perspectives
           if (perspective !== "First") {
-            baselinePrompt = baselinePrompt
-              .replace(/\bI am\b/g, perspective === "Third" ? "My friend is" : "They are")
-              .replace(/\bI have\b/g, perspective === "Third" ? "My friend has" : "They have")
-              .replace(/\bI\b/g, perspective === "Third" ? "My friend" : "They")
-              .replace(/\bmy\b/g, perspective === "Third" ? "my friend's" : "their")
-              .replace(/\bme\b/g, perspective === "Third" ? "them" : "them")
-              .replace(/\bthey has\b/g, "they have");
-
-            baselinePrompt = baselinePrompt.replace(/\bthey has\b/g, 'they have');
+            if (perspective === "Third") {
+              baselinePrompt = baselinePrompt
+                // Replace both "I am" and "My friend am" with the correct verb form.
+                .replace(/\bI am\b/g, "My friend is")
+                .replace(/\bMy friend am\b/g, "My friend is")
+                .replace(/\bI have\b/g, "My friend has")
+                .replace(/\bI\b/g, "My friend")
+                .replace(/\bmy\b/g, "my friend's")
+                .replace(/\bme\b/g, "them");
+            } else {
+              baselinePrompt = baselinePrompt
+                .replace(/\bI am\b/g, "They are")
+                .replace(/\bI have\b/g, "They have")
+                .replace(/\bI\b/g, "They")
+                .replace(/\bmy\b/g, "their")
+                .replace(/\bme\b/g, "them");
+            }
           }
 
           if (relevance === "Relevant") {
