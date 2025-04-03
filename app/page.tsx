@@ -1602,7 +1602,7 @@ useEffect(() => {
                       <TabsList className="grid w-full lg:grid-cols-4 md:grid-cols-2 sm:grid-cols-1 mb-4 h-auto">
                         <TabsTrigger value="llm" className="py-2">LLM Concepts</TabsTrigger>
                         <TabsTrigger value="lda" className="py-2">LDA Concepts</TabsTrigger>
-                        <TabsTrigger value="embeddings" className="py-2">BERT Embeddings</TabsTrigger>
+                        <TabsTrigger value="embeddings" className="py-2">Embeddings Concepts</TabsTrigger>
                         <TabsTrigger value="agreement" className="py-2">Agreement Scores</TabsTrigger>
                       </TabsList>
                     </div>

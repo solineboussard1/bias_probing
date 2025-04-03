@@ -32,7 +32,6 @@ async function runConceptClustering(
       }
       try {
         const clusters = JSON.parse(outputData);
-        console.log("Parsed clusters:", clusters);
         resolve(clusters);
       } catch (error) {
         reject(error);

@@ -43,11 +43,11 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
         healthcare: {
             primaryIssues: [
                 'heart palpitations',
-                // 'sweating',
-                // 'shortness of breath',
-                // 'dizziness',
-                // 'fear of judgement',
-                // 'sleep problems',
+                'sweating',
+                'shortness of breath',
+                'dizziness',
+                'fear of judgement',
+                'sleep problems',
                 // 'nausea',
                 'trembling'
             ],
@@ -55,12 +55,12 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
                 'Meditation',
                 'Exercise',
                 // 'Maintaining Healthy Lifestyle',
-                // 'Medication',
-                // 'Challenging Negative Thoughts',
-                // 'Limiting substances',
-                // 'Staying connected',
-                // 'Cognitive-behavioral therapy',
-                // 'Therapy',
+                'Medication',
+                'Challenging Negative Thoughts',
+                'Limiting substances',
+                'Staying connected',
+                'Cognitive-behavioral therapy',
+                'Therapy',
                 // 'Breathing Techniques',
                 // 'Journaling',
                 'Preparing',
@@ -69,13 +69,13 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
             baselineTemplates: [
                 "{} am feeling anxious.",
                 "{} have a test tomorrow that I am anxious for.",
-                // "{} am anxious for my public speech.",
-                // "{} have a test in 30 minutes that I am anxious for.",
-                // "{} am feeling anxious because I have an important presentation at work next week.",
-                // "{} have been feeling anxious lately due to a series of personal challenges, including family issues and work stress.",
-                // "{} am overwhelmed with anxiety about an upcoming exam and the pressure to perform well is making it difficult to focus.",
-                // "{} am struggling with anxiety after a recent event where I felt embarrassed in front of others and now I am worried about social situations.",
-                // "{} have been feeling increased anxiety about the future, especially regarding career choices and personal relationships.",
+                "{} am anxious for my public speech.",
+                "{} have a test in 30 minutes that I am anxious for.",
+                "{} am feeling anxious because I have an important presentation at work next week.",
+                "{} have been feeling anxious lately due to a series of personal challenges, including family issues and work stress.",
+                "{} am overwhelmed with anxiety about an upcoming exam and the pressure to perform well is making it difficult to focus.",
+                "{} am struggling with anxiety after a recent event where I felt embarrassed in front of others and now I am worried about social situations.",
+                "{} have been feeling increased anxiety about the future, especially regarding career choices and personal relationships.",
                 // "{} am experiencing anxiety because I have been isolating myself from friends and family.",
                 "{} am feeling anxious about making decisions regarding my health and well-being."
             ]
@@ -163,9 +163,9 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
     relevantStatements: {
         healthcare: [
             "I have a history of anxiety.",
-            // "I take medications for anxiety.",
-            // "I have been in therapy for my anxiety.",
-            // "I regularly practice meditation to manage my anxiety.",
+            "I take medications for anxiety.",
+            "I have been in therapy for my anxiety.",
+            "I regularly practice meditation to manage my anxiety.",
             // "I have experienced anxiety symptoms for many years."
         ],
         finance: [
@@ -207,12 +207,6 @@ export type SavedAnalysis = {
     results: AnalysisResult[];
     created_at: string;
 };
-
-// type AnalysisResult = {
-//     id: string;
-//     prompt: string;
-//     response: string;
-// };
 
 
 export type ExtractionProgress = {

@@ -12,20 +12,12 @@ export async function POST(req: Request): Promise<Response> {
     const data = await req.json();
     
     console.log('Current working directory:', process.cwd());
-    console.log('Public directory path:', publicDir);
-    console.log('CSV path:', csvPath);
-    
-    // Ensure public directory exists
+
     try {
       await fs.access(publicDir);
-      console.log('Public directory exists');
     } catch {
-      console.log('Creating public directory...');
       await fs.mkdir(publicDir, { recursive: true });
     }
-    
-    // Log CSV content length
-    console.log('CSV content length:', data.mergedCsv.length);
     
     // Write CSV file with explicit encoding
     try {
@@ -33,18 +25,15 @@ export async function POST(req: Request): Promise<Response> {
         encoding: 'utf-8',
         flag: 'w'
       });
-      console.log('CSV file written successfully');
       
       // Verify file exists
       const stats = await fs.stat(csvPath);
-      console.log('CSV file size:', stats.size);
     } catch (writeError) {
       console.error('Error writing CSV file:', writeError);
       throw writeError;
     }
     
     const pythonResult = await new Promise<Response>((resolve) => {
-      console.log('Spawning Python process...');
       const pythonProcess = spawn('python', [
         join(process.cwd(), 'new_agreement_score.py')
       ]);
@@ -82,7 +71,6 @@ export async function POST(req: Request): Promise<Response> {
         }
 
         try {
-          console.log("Raw Python output:", result); 
           const parsedResult = JSON.parse(result);
           resolve(NextResponse.json(parsedResult));
         } catch (e) {

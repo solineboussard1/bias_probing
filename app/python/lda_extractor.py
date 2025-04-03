@@ -20,7 +20,7 @@ def clean_text(text):
     tokens = word_tokenize(text.lower())
     return ' '.join([t for t in tokens if t.isalpha() and t not in stop_words and len(t) > 2])
 
-def extract_topics(responses, candidate_topics=range(5, 12)):
+def extract_topics(responses, candidate_topics=range(5, 12,2)):
     # Clean texts and prepare tokenized texts for coherence computation
     texts = [clean_text(res['text']) for res in responses]
     tokenized_texts = [text.split() for text in texts]  
@@ -34,7 +34,7 @@ def extract_topics(responses, candidate_topics=range(5, 12)):
     doc_term_matrix = vectorizer.fit_transform(texts)
     
     if doc_term_matrix.shape[0] == 0 or doc_term_matrix.shape[1] == 0:
-        return { "error": "Empty document-term matrix. Try lowering min_df or increasing data size." }
+        return { "error": "Empty document-term matrix." }
     
     feature_names = vectorizer.get_feature_names_out()
     
@@ -46,7 +46,7 @@ def extract_topics(responses, candidate_topics=range(5, 12)):
     
     # Grid search for the best number of topics based on coherence
     for n_topics in candidate_topics:
-        lda = LatentDirichletAllocation(n_components=n_topics, random_state=42, max_iter=25, learning_method='online')
+        lda = LatentDirichletAllocation(n_components=n_topics, random_state=42, max_iter=50, learning_method='batch')
         doc_topics = lda.fit_transform(doc_term_matrix)
         
         topics = []

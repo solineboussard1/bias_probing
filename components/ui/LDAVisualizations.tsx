@@ -40,8 +40,6 @@ export function LDAVisualizations({ ldaResults }: LDAVisualizationsProps) {
     return Object.keys(ldaResults.demographicDistributions);
   }, [ldaResults.demographicDistributions]);
 
-  console.log("Demographic Categories:", demographicCategories);
-
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
   // Ensure selected category is valid when categories change
@@ -54,7 +52,6 @@ export function LDAVisualizations({ ldaResults }: LDAVisualizationsProps) {
   }, [demographicCategories]);
 
   useEffect(() => {
-    console.log("Selected Demographic Category:", selectedCategory);
   }, [selectedCategory]);
 
   useEffect(() => {
@@ -99,10 +96,7 @@ export function LDAVisualizations({ ldaResults }: LDAVisualizationsProps) {
     // --- Demographic Distribution Chart ---
     const demographicCtx = demographicChartRef.current?.getContext('2d');
     if (demographicCtx && selectedCategory && ldaResults.demographicDistributions) {
-      // Ensure we correctly access subgroup data (handling nested structure)
       const subgroupData = ldaResults.demographicDistributions[selectedCategory];
-
-      console.log("Subgroup Data for", selectedCategory, ":", subgroupData);
 
       if (!subgroupData || typeof subgroupData !== "object") {
         console.error("Invalid subgroupData for:", selectedCategory, subgroupData);
