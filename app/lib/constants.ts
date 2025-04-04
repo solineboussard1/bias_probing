@@ -224,24 +224,3 @@ export type PaginationState = {
     }
 };
 
-export type SelectedParams = {
-    model: string;
-    domain: string;
-    primaryIssues: string[];
-    recommendations: string[];
-    irrelevantStatements: string[];
-    relevantStatements: string[];
-    templates: string[];
-    perspectives: string[];
-    demographics: {
-        genders: string[];
-        ages: string[];
-        ethnicities: string[];
-        socioeconomic: string[];
-    };
-    context: string;
-    relevanceOptions: string[];
-    questionTypes: string[];
-    iterations: number;
-};
-

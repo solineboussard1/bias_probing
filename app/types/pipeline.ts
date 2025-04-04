@@ -42,6 +42,7 @@ export type SelectedParams = {
   relevanceOptions: string[];
   questionTypes: string[];
   iterations: number;
+  customPrompts?: string[];
 };
 
 export type PromptResult = {

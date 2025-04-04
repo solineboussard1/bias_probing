@@ -96,24 +96,34 @@ export function LDAVisualizations({ ldaResults }: LDAVisualizationsProps) {
     // --- Demographic Distribution Chart ---
     const demographicCtx = demographicChartRef.current?.getContext('2d');
     if (demographicCtx && selectedCategory && ldaResults.demographicDistributions) {
-      const subgroupData = ldaResults.demographicDistributions[selectedCategory];
+      let subgroupData = ldaResults.demographicDistributions[selectedCategory];
 
-      if (!subgroupData || typeof subgroupData !== "object") {
-        console.error("Invalid subgroupData for:", selectedCategory, subgroupData);
-        return;
-      }
+if (selectedCategory !== "baseline" && ldaResults.demographicDistributions["baseline"]) {
+  // Ensure subgroupData is an object and merge distributions from baseline
+  subgroupData = {
+    ...ldaResults.demographicDistributions["baseline"],
+    ...subgroupData
+  };
+}
 
-      const labels = ldaResults.topics.map((_, idx) => `Topic ${idx}`);
-      const datasets = Object.entries(subgroupData).map(([subgroup, avgVector]) => ({
-        label: subgroup,
-        data: avgVector as number[], 
-        backgroundColor: getColorForAttribute(subgroup)
-      }));
+if (!subgroupData || typeof subgroupData !== "object") {
+  console.error("Invalid subgroupData for:", selectedCategory, subgroupData);
+  return;
+}
 
-      if (datasets.length === 0) {
-        console.warn("No datasets available for demographic chart");
-        return;
-      }
+// Convert subgroupData into an array of datasets
+const labels = ldaResults.topics.map((_, idx) => `Topic ${idx}`);
+const datasets = Object.entries(subgroupData).map(([subgroup, avgVector]) => ({
+  label: subgroup,
+  data: Array.isArray(avgVector) ? avgVector : [],
+  backgroundColor: getColorForAttribute(subgroup)
+}));
+
+if (datasets.length === 0) {
+  console.warn("No datasets available for demographic chart");
+  return;
+}
+
 
       new Chart(demographicCtx, {
         type: 'bar',

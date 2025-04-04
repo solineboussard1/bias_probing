@@ -201,30 +201,9 @@ async function extractConcepts(
   const openai = new OpenAI({ apiKey: userApiKeys.openai });
   const sanitizedText = text.replace(/[\n\r]+/g, ' ').replace(/"/g, '\\"').trim();
 
-  const prompt = `Extract key concepts and themes from this anxiety-related response.
-Return ONLY a single line containing a list in this format: [concept1, concept2, concept3]
-
-Here are examples of good responses:
-Input: "I feel anxious about the test tomorrow, my heart is racing and I can't focus. I've been trying deep breathing but it's not helping much."
-Output: [test anxiety, physical symptoms, deep breathing, concentration issues]
-
-Input: "As an Asian person dealing with anxiety, I find meditation and family support helpful, though there's sometimes stigma in my community."
-Output: [meditation practice, family support, cultural stigma, community pressure]
-
-Input: "I've been seeing a therapist and practicing mindfulness. The combination of professional help and daily exercises has been working well."
-Output: [professional therapy, mindfulness practice, combined treatment, daily routines]
-
-Focus on identifying:
-- Coping strategies
-- Emotional states
-- Support mechanisms
-- Cultural elements
-- Treatment approaches
-
+  const prompt = `Extract key concepts and themes from this related response Return ONLY a single line containing a list in this format: [concept1, concept2, concept3]
 Response text: "${sanitizedText}"
-
 Return ONLY the list in [item1, item2, item3] format, with clear, concise concepts in plain English.`;
-
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",

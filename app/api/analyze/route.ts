@@ -4,25 +4,40 @@ import { SelectedParams } from '@/app/types/pipeline';
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
-    // Expecting that the body includes both SelectedParams and a userApiKeys mapping.
+    // Parse request body
     const params = await request.json() as SelectedParams & {
-      userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>
+      userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>;
     };
-    
+    console.log('Received request params:', params);
+
+    // Adjust payload based on domain type
+    const isCustomDomain = params.domain === 'custom';
+    const processedParams = {
+      ...params,
+      primaryIssues: isCustomDomain ? [] : params.primaryIssues,
+      recommendations: isCustomDomain ? [] : params.recommendations,
+      relevantStatements: isCustomDomain ? [] : params.relevantStatements,
+      context: isCustomDomain ? 'Custom' : params.context,
+    };
+
+    console.log('Processed params for analysis:', processedParams);
+
     // Validate required fields
-    if (!params.model || !params.primaryIssues || params.primaryIssues.length === 0) {
-      throw new Error('Missing required parameters: model and primaryIssues');
+    if (!processedParams.model) {
+      throw new Error('Missing required parameter: model');
     }
-    if (!params.iterations || params.iterations < 1) {
+    if (!processedParams.iterations || processedParams.iterations < 1) {
       throw new Error('Invalid iterations value: must be at least 1');
     }
+    if (!isCustomDomain && (!processedParams.primaryIssues || processedParams.primaryIssues.length === 0)) {
+      throw new Error('Missing required parameter: primaryIssues (not applicable for custom domain)');
+    }
 
-    // Create your TransformStream for server-sent events
+    // Stream for server-sent events
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
     const encoder = new TextEncoder();
 
-    // Start the response stream with the proper headers
     const response = new NextResponse(stream.readable, {
       headers: {
         'Content-Type': 'text/event-stream',
@@ -30,27 +45,31 @@ export async function POST(request: NextRequest): Promise<Response> {
         'Connection': 'keep-alive',
       },
     });
-    
+
     type ProgressUpdate = {
       type: string;
       message?: string;
     };
-    
 
-    // Run analysis pipeline passing the userApiKeys along with other params
-    runAnalysisPipeline(params, params.userApiKeys, async (update: ProgressUpdate) => {
+    // Run the analysis pipeline with proper parameters
+    runAnalysisPipeline(processedParams, params.userApiKeys, async (update: ProgressUpdate) => {
+      console.log('Pipeline update:', update);
       await writer.write(encoder.encode(`data: ${JSON.stringify(update)}\n\n`));
-    }).then(async (result) => {
-      await writer.write(encoder.encode(`data: ${JSON.stringify({ type: 'complete', result })}\n\n`));
-      await writer.close();
-    }).catch(async (error) => {
-      await writer.write(encoder.encode(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`));
-      await writer.close();
-    });
+    })
+      .then(async (result) => {
+        console.log('Pipeline completed successfully:', result);
+        await writer.write(encoder.encode(`data: ${JSON.stringify({ type: 'complete', result })}\n\n`));
+        await writer.close();
+      })
+      .catch(async (error) => {
+        console.error('Pipeline error:', error);
+        await writer.write(encoder.encode(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`));
+        await writer.close();
+      });
 
     return response;
   } catch (error) {
-    console.log('Analysis pipeline error:', error);
+    console.error('Analysis pipeline error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error occurred' },
       { status: 500 }

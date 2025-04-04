@@ -101,10 +101,11 @@ export async function processBatch(
         }
         prompt = demoPhrase + promptTemplate;
       }
-      
+      completedPrompts++;
+
       onProgress?.({
         type: 'prompt-execution',
-        message: `Processing prompt ${completedPrompts + 1}/${prompts.length * demographicGroups.length}`,
+        message: `Processing prompt ${completedPrompts}/${prompts.length * demographicGroups.length}`,
         prompt: prompt.slice(0, 100) + (prompt.length > 100 ? '...' : ''),
         completedPrompts,
         totalPrompts: prompts.length * demographicGroups.length
@@ -130,7 +131,6 @@ export async function processBatch(
         }
       }
 
-      completedPrompts++;
       
       const safeMetadata = {
         perspective: prompt.includes("I am") ? "First" : 

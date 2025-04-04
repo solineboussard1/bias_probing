@@ -48,7 +48,12 @@ function constructQuestion(
 export function generatePrompts(params: SelectedParams): string[] {
   const prompts: string[] = [];
 
-  // Generate baseline prompts
+  // Add custom prompts if available
+  if (params.customPrompts && params.customPrompts.length > 0) {
+    prompts.push(...params.customPrompts);
+  }
+
+  // Existing prompt generation logic for templates
   params.templates.forEach(template => {
     params.perspectives.forEach(perspective => {
       params.questionTypes.forEach(questionType => {
@@ -60,21 +65,24 @@ export function generatePrompts(params: SelectedParams): string[] {
           if (perspective !== "First") {
             if (perspective === "Third") {
               baselinePrompt = baselinePrompt
-                // Replace both "I am" and "My friend am" with the correct verb form.
-                .replace(/\bI am\b/g, "My friend is")
-                .replace(/\bMy friend am\b/g, "My friend is")
-                .replace(/\bI have\b/g, "My friend has")
-                .replace(/\bI\b/g, "My friend")
-                .replace(/\bmy\b/g, "my friend's")
-                .replace(/\bme\b/g, "them");
-            } else {
+                .replace(/\bI am\b/g, "My friend is") // "I am" → "My friend is"
+                .replace(/\bI have\b/g, "My friend has") // "I have" → "My friend has"
+                .replace(/\bI\b/g, "My friend") // "I" → "My friend"
+                .replace(/\bmy\b/g, "my friend's") // "my" → "my friend's"
+                .replace(/\bme\b/g, "them") // "me" → "them"
+                .replace(/\bhas my friend\b/g, "has") // Remove redundant "has my friend"
+                .replace(/\bMy friend have\b/g, "My friend has") // Fix "My friend have" → "My friend has"
+                .replace(/\bMy friend am\b/g, "My friend is"); // Fix "My friend am" → "My friend is"
+            } else if (perspective === "Hypothetical") {
               baselinePrompt = baselinePrompt
-                .replace(/\bI am\b/g, "They are")
-                .replace(/\bI have\b/g, "They have")
-                .replace(/\bI\b/g, "They")
-                .replace(/\bmy\b/g, "their")
-                .replace(/\bme\b/g, "them");
-            }
+                .replace(/\bI am\b/g, "They are") // "I am" → "They are"
+                .replace(/\bI have\b/g, "They have") // "I have" → "They have"
+                .replace(/\bI\b/g, "Someone") // "I" → "Someone"
+                .replace(/\bmy\b/g, "their") // "my" → "their"
+                .replace(/\bme\b/g, "them") // "me" → "them"
+                .replace(/\bSomeone have\b/g, "Someone has") // Fix "Someone have" → "Someone has"
+                .replace(/\bSomeone am\b/g, "Someone is"); // Fix "Someone am" → "Someone is"
+            }            
           }
 
           if (relevance === "Relevant") {

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from 'sonner';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent, } from "@/components/ui/tooltip";
 import { useHotkeys } from 'react-hotkeys-hook';
-import { AnalysisResult, ClusterOutput, PromptResult, LDAResult, AgreementScores, ExtractedConcepts, AllResults } from './types/pipeline';
+import { AnalysisResult, ClusterOutput, SelectedParams,PromptResult, LDAResult, AgreementScores, ExtractedConcepts, AllResults } from './types/pipeline';
 import { ConceptVisualizations } from '@/components/ui/ConceptVisualizations';
 import { LDAVisualizations } from '@/components/ui/LDAVisualizations';
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AgreementScoreVisualizations } from "@/components/ui/AgreementScoreVisualizations";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from "@/components/ui/dropdown-menu";
 import { downloadCSV, createMergedAnalysisCSV } from "@/app/lib/csv-utils";
-import { PipelineParams, SelectedParams, PaginationState, ExtractionProgress, SavedAnalysis, DEFAULT_PIPELINE_PARAMS } from "@/app/lib/constants";
+import { PipelineParams, PaginationState, ExtractionProgress, SavedAnalysis, DEFAULT_PIPELINE_PARAMS } from "@/app/lib/constants";
 
 const ITEMS_PER_PAGE = 5;
 
@@ -167,7 +167,7 @@ export default function Home() {
 
   const handleAnalyze = async () => {
     // Basic validation of required fields
-    if (!selectedParams.model || selectedParams.primaryIssues.length === 0) {
+    if (!selectedParams.model || (selectedParams.domain !== 'custom' && selectedParams.primaryIssues.length === 0)) {
       toast.error('Please select a model and at least one primary issue');
       return;
     }
@@ -199,10 +199,23 @@ export default function Home() {
     }
 
     const payload = {
-      ...selectedParams,
-      userApiKeys,
+      model: selectedParams.model,
+      domain: selectedParams.domain,
+      primaryIssues: selectedParams.domain === 'custom' ? [] : selectedParams.primaryIssues,
+      recommendations: selectedParams.domain === 'custom' ? [] : selectedParams.recommendations,
+      relevantStatements: selectedParams.domain === 'custom' ? [] : selectedParams.relevantStatements,
+      irrelevantStatements: selectedParams.irrelevantStatements,
+      templates: selectedParams.domain === 'custom' ? [] : selectedParams.templates,
+      perspectives: selectedParams.perspectives,
+      demographics: selectedParams.demographics,
+      context: selectedParams.domain === 'custom' ? 'Custom' : selectedParams.context,
+      relevanceOptions: selectedParams.domain === 'custom' ? [] : selectedParams.relevanceOptions,
+      questionTypes: selectedParams.domain === 'custom' ? [] : selectedParams.questionTypes,
+      iterations: selectedParams.iterations,
+      customPrompts: selectedParams.domain === 'custom' ? (selectedParams.customPrompts || []) : [],
+      userApiKeys: userApiKeys,
     };
-
+  
     setIsAnalyzing(true);
     setProgress(null);
     setConceptData({ concepts: new Map(), demographicDistributions: new Map() });
@@ -210,8 +223,6 @@ export default function Home() {
     setEmbeddingsResults([]);
     setAgreementData(null);
     setAnalysisResults([]);
-    
-
 
     try {
       const response = await fetch('/api/analyze', {
@@ -335,7 +346,35 @@ export default function Home() {
     toast.success('Analysis saved and downloaded successfully');
   };
 
-  // Add file upload handler
+  const handlePromptUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        // Parse the JSON content; it should be an array of prompts
+        const prompts = JSON.parse(content);
+        if (!Array.isArray(prompts)) {
+          throw new Error('The JSON file must contain an array of prompts.');
+        }
+        // Update state to store the custom prompts
+        setSelectedParams(prev => ({
+          ...prev,
+          customPrompts: prompts as string[]
+        }));
+        console.log('Custom prompts loaded:', prompts);
+      } catch (error) {
+        console.error('Error processing file:', error);
+      }
+    };
+    reader.onerror = (error) => {
+      console.error('File reading error:', error);
+    };
+    reader.readAsText(file);
+  };
+
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -723,23 +762,23 @@ export default function Home() {
   // Call calculateAgreementScores when all three extraction methods are complete
   const [isDataReady, setIsDataReady] = useState(false);
 
-useEffect(() => {
-  const allDataPresent =
-    conceptData.concepts.size > 0 &&
-    ldaResults !== null &&
-    embeddingsResults.length > 0;
+  useEffect(() => {
+    const allDataPresent =
+      conceptData.concepts.size > 0 &&
+      ldaResults !== null &&
+      embeddingsResults.length > 0;
 
-  if (allDataPresent) {
-    setIsDataReady(true);
-  }
-}, [conceptData.concepts.size, ldaResults, embeddingsResults.length]);
+    if (allDataPresent) {
+      setIsDataReady(true);
+    }
+  }, [conceptData.concepts.size, ldaResults, embeddingsResults.length]);
 
-useEffect(() => {
-  if (isDataReady) {
-    calculateAgreementScores();
-    setIsDataReady(false);
-  }
-}, [isDataReady]);
+  useEffect(() => {
+    if (isDataReady) {
+      calculateAgreementScores();
+      setIsDataReady(false);
+    }
+  }, [isDataReady]);
 
 
   const handleDownloadResults = () => {
@@ -1058,10 +1097,12 @@ useEffect(() => {
               <div className="space-y-3">
                 <div
                   className="border-b pb-1 flex justify-between items-center cursor-pointer"
-                  onClick={() => setConfigSectionsExpanded(prev => ({
-                    ...prev,
-                    parameters: !prev.parameters
-                  }))}
+                  onClick={() =>
+                    setConfigSectionsExpanded(prev => ({
+                      ...prev,
+                      parameters: !prev.parameters,
+                    }))
+                  }
                 >
                   <h3 className="text-lg font-semibold tracking-tight">Parameters</h3>
                   {configSectionsExpanded.parameters ? (
@@ -1078,14 +1119,38 @@ useEffect(() => {
                       <Label>Domain</Label>
                       <Select
                         value={selectedParams.domain}
-                        onValueChange={(value) => setSelectedParams(prev => ({
-                          ...prev,
-                          domain: value,
-                          primaryIssues: [DEFAULT_PIPELINE_PARAMS.domainPatterns[value as keyof typeof DEFAULT_PIPELINE_PARAMS.domainPatterns].primaryIssues[0]],
-                          recommendations: [...DEFAULT_PIPELINE_PARAMS.domainPatterns[value as keyof typeof DEFAULT_PIPELINE_PARAMS.domainPatterns].recommendationPatterns],
-                          relevantStatements: [...DEFAULT_PIPELINE_PARAMS.relevantStatements[value as keyof typeof DEFAULT_PIPELINE_PARAMS.relevantStatements]],
-                          templates: [...DEFAULT_PIPELINE_PARAMS.domainPatterns[value as keyof typeof DEFAULT_PIPELINE_PARAMS.domainPatterns].baselineTemplates]
-                        }))}
+                        onValueChange={(value) => {
+                          if (value === 'custom') {
+                            // When Custom is selected, remove other parameters (except demographics)
+                            setSelectedParams(prev => ({
+                              ...prev,
+                              domain: value,
+                              // Reset or remove domain-specific settings
+                              primaryIssues: [],
+                              recommendations: [],
+                              relevantStatements: [],
+                              templates: [],
+                
+                            }));
+                          } else {
+                            setSelectedParams(prev => ({
+                              ...prev,
+                              domain: value,
+                              primaryIssues: [
+                                DEFAULT_PIPELINE_PARAMS.domainPatterns[value].primaryIssues[0],
+                              ],
+                              recommendations: [
+                                ...DEFAULT_PIPELINE_PARAMS.domainPatterns[value].recommendationPatterns,
+                              ],
+                              relevantStatements: [
+                                ...DEFAULT_PIPELINE_PARAMS.relevantStatements[value],
+                              ],
+                              templates: [
+                                ...DEFAULT_PIPELINE_PARAMS.domainPatterns[value].baselineTemplates,
+                              ],
+                            }));
+                          }
+                        }}
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Choose a domain" />
@@ -1096,109 +1161,236 @@ useEffect(() => {
                               {domain.charAt(0).toUpperCase() + domain.slice(1)}
                             </SelectItem>
                           ))}
+                          {/* Add the custom option */}
+                          <SelectItem value="custom">Custom</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {/* Domain-specific Primary Issues */}
-                    <div className="space-y-1">
-                      <Label>
-                        {selectedParams.domain === 'healthcare' ? 'Symptoms' :
-                          selectedParams.domain === 'finance' ? 'Financial Issues' :
-                            selectedParams.domain === 'education' ? 'Academic Issues' :
-                              'Primary Issues'}
-                      </Label>
-                      <div className="flex flex-wrap gap-1">
-                        {DEFAULT_PIPELINE_PARAMS.domainPatterns[selectedParams.domain as keyof typeof DEFAULT_PIPELINE_PARAMS.domainPatterns].primaryIssues.map(issue => (
-                          <Badge
-                            key={issue}
-                            variant={selectedParams.primaryIssues.includes(issue) ? "default" : "outline"}
-                            className="cursor-pointer"
-                            onClick={() => {
+                    {/* Conditional Rendering: Custom vs. Standard Domain Settings */}
+                    {selectedParams.domain === 'custom' ? (
+                      // Custom domain: only show file upload for custom prompts
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <Label>Upload Custom Prompts</Label>
+                          <Input type="file" onChange={handlePromptUpload} />
+
+                        </div>
+                      </div>
+                    ) : (
+                      // Standard domain: show domain-specific parameters
+                      <>
+                        {/* Domain-specific Primary Issues */}
+                        <div className="space-y-1">
+                          <Label>
+                            {selectedParams.domain === 'healthcare'
+                              ? 'Symptoms'
+                              : selectedParams.domain === 'finance'
+                                ? 'Financial Issues'
+                                : selectedParams.domain === 'education'
+                                  ? 'Academic Issues'
+                                  : 'Primary Issues'}
+                          </Label>
+                          <div className="flex flex-wrap gap-1">
+                            {DEFAULT_PIPELINE_PARAMS.domainPatterns[selectedParams.domain].primaryIssues.map(
+                              issue => (
+                                <Badge
+                                  key={issue}
+                                  variant={
+                                    selectedParams.primaryIssues.includes(issue)
+                                      ? 'default'
+                                      : 'outline'
+                                  }
+                                  className="cursor-pointer"
+                                  onClick={() => {
+                                    setSelectedParams(prev => ({
+                                      ...prev,
+                                      primaryIssues: prev.primaryIssues.includes(issue)
+                                        ? prev.primaryIssues.filter(s => s !== issue)
+                                        : [...prev.primaryIssues, issue],
+                                    }));
+                                  }}
+                                >
+                                  {issue}
+                                </Badge>
+                              )
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Domain-specific Recommendations */}
+                        <div className="space-y-1">
+                          <Label>
+                            {selectedParams.domain === 'healthcare'
+                              ? 'Treatment Recommendations'
+                              : selectedParams.domain === 'finance'
+                                ? 'Financial Recommendations'
+                                : selectedParams.domain === 'education'
+                                  ? 'Academic Recommendations'
+                                  : 'Recommendations'}
+                          </Label>
+                          <div className="flex flex-wrap gap-1">
+                            {DEFAULT_PIPELINE_PARAMS.domainPatterns[selectedParams.domain].recommendationPatterns.map(
+                              rec => (
+                                <Badge
+                                  key={rec}
+                                  variant={
+                                    selectedParams.recommendations.includes(rec)
+                                      ? 'default'
+                                      : 'outline'
+                                  }
+                                  className="cursor-pointer"
+                                  onClick={() => {
+                                    setSelectedParams(prev => ({
+                                      ...prev,
+                                      recommendations: prev.recommendations.includes(rec)
+                                        ? prev.recommendations.filter(r => r !== rec)
+                                        : [...prev.recommendations, rec],
+                                    }));
+                                  }}
+                                >
+                                  {rec}
+                                </Badge>
+                              )
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Domain-specific Relevant Statements */}
+                        <div className="space-y-1">
+                          <Label>
+                            {selectedParams.domain === 'healthcare'
+                              ? 'Medical History Statements'
+                              : selectedParams.domain === 'finance'
+                                ? 'Financial History Statements'
+                                : selectedParams.domain === 'education'
+                                  ? 'Academic History Statements'
+                                  : 'Relevant Background Statements'}
+                          </Label>
+                          <div className="flex flex-wrap gap-1">
+                            {DEFAULT_PIPELINE_PARAMS.relevantStatements[selectedParams.domain].map(
+                              statement => (
+                                <Badge
+                                  key={statement}
+                                  variant={
+                                    selectedParams.relevantStatements.includes(statement)
+                                      ? 'default'
+                                      : 'outline'
+                                  }
+                                  className="cursor-pointer"
+                                  onClick={() => {
+                                    setSelectedParams(prev => ({
+                                      ...prev,
+                                      relevantStatements: prev.relevantStatements.includes(statement)
+                                        ? prev.relevantStatements.filter(s => s !== statement)
+                                        : [...prev.relevantStatements, statement],
+                                    }));
+                                  }}
+                                >
+                                  {statement}
+                                </Badge>
+                              )
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Question Types */}
+                        <div className="space-y-1">
+                          <Label>Question Types</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {pipelineParams.questionTypes.map(type => (
+                              <Badge
+                                key={type}
+                                variant={
+                                  selectedParams.questionTypes.includes(type)
+                                    ? 'default'
+                                    : 'outline'
+                                }
+                                className="cursor-pointer"
+                                onClick={() => {
+                                  setSelectedParams(prev => ({
+                                    ...prev,
+                                    questionTypes: prev.questionTypes.includes(type)
+                                      ? prev.questionTypes.filter(t => t !== type)
+                                      : [...prev.questionTypes, type],
+                                  }));
+                                }}
+                              >
+                                {type}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Relevance Options */}
+                        <div className="space-y-1">
+                          <Label>Relevance Options</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {pipelineParams.relevanceOptions.map(option => (
+                              <Badge
+                                key={option}
+                                variant={
+                                  selectedParams.relevanceOptions.includes(option)
+                                    ? 'default'
+                                    : 'outline'
+                                }
+                                className="cursor-pointer"
+                                onClick={() => {
+                                  setSelectedParams(prev => ({
+                                    ...prev,
+                                    relevanceOptions: prev.relevanceOptions.includes(option)
+                                      ? prev.relevanceOptions.filter(o => o !== option)
+                                      : [...prev.relevanceOptions, option],
+                                  }));
+                                }}
+                              >
+                                {option}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Iterations Input */}
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium">
+                            Iterations per Prompt
+                          </Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={selectedParams.iterations}
+                            onChange={(e) => {
+                              const value = e.target.value === '' ? 0 : parseInt(e.target.value);
                               setSelectedParams(prev => ({
                                 ...prev,
-                                primaryIssues: prev.primaryIssues.includes(issue)
-                                  ? prev.primaryIssues.filter(s => s !== issue)
-                                  : [...prev.primaryIssues, issue]
+                                iterations: value,
                               }));
                             }}
-                          >
-                            {issue}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
+                            className="w-full"
+                          />
+                        </div>
+                      </>
+                    )}
 
-                    {/* Domain-specific Recommendations */}
-                    <div className="space-y-1">
-                      <Label>
-                        {selectedParams.domain === 'healthcare' ? 'Treatment Recommendations' :
-                          selectedParams.domain === 'finance' ? 'Financial Recommendations' :
-                            selectedParams.domain === 'education' ? 'Academic Recommendations' :
-                              'Recommendations'}
-                      </Label>
-                      <div className="flex flex-wrap gap-1">
-                        {DEFAULT_PIPELINE_PARAMS.domainPatterns[selectedParams.domain as keyof typeof DEFAULT_PIPELINE_PARAMS.domainPatterns].recommendationPatterns.map(rec => (
-                          <Badge
-                            key={rec}
-                            variant={selectedParams.recommendations.includes(rec) ? "default" : "outline"}
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setSelectedParams(prev => ({
-                                ...prev,
-                                recommendations: prev.recommendations.includes(rec)
-                                  ? prev.recommendations.filter(r => r !== rec)
-                                  : [...prev.recommendations, rec]
-                              }));
-                            }}
-                          >
-                            {rec}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Domain-specific Relevant Statements */}
-                    <div className="space-y-1">
-                      <Label>
-                        {selectedParams.domain === 'healthcare' ? 'Medical History Statements' :
-                          selectedParams.domain === 'finance' ? 'Financial History Statements' :
-                            selectedParams.domain === 'education' ? 'Academic History Statements' :
-                              'Relevant Background Statements'}
-                      </Label>
-                      <div className="flex flex-wrap gap-1">
-                        {DEFAULT_PIPELINE_PARAMS.relevantStatements[selectedParams.domain as keyof typeof DEFAULT_PIPELINE_PARAMS.relevantStatements].map(statement => (
-                          <Badge
-                            key={statement}
-                            variant={selectedParams.relevantStatements.includes(statement) ? "default" : "outline"}
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setSelectedParams(prev => ({
-                                ...prev,
-                                relevantStatements: prev.relevantStatements.includes(statement)
-                                  ? prev.relevantStatements.filter(s => s !== statement)
-                                  : [...prev.relevantStatements, statement]
-                              }));
-                            }}
-                          >
-                            {statement}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Demographics - Unchanged */}
+                    {/* Demographics - Always shown */}
                     <div className="space-y-2">
                       <Label>Demographics</Label>
                       <div className="grid grid-cols-2 gap-2">
-                        {(Object.keys(pipelineParams.demographics) as Array<keyof typeof pipelineParams.demographics>).map(category => (
+                        {(Object.keys(pipelineParams.demographics) as Array<
+                          keyof typeof pipelineParams.demographics
+                        >).map((category) => (
                           <div key={category} className="space-y-2">
                             <Label className="capitalize">{category}</Label>
                             <div className="flex flex-wrap gap-2">
-                              {pipelineParams.demographics[category].map(value => (
+                              {pipelineParams.demographics[category].map((value) => (
                                 <Badge
                                   key={value}
-                                  variant={selectedParams.demographics[category].includes(value) ? "default" : "outline"}
+                                  variant={
+                                    selectedParams.demographics[category].includes(value)
+                                      ? 'default'
+                                      : 'outline'
+                                  }
                                   className="cursor-pointer"
                                   onClick={() => {
                                     setSelectedParams(prev => ({
@@ -1207,8 +1399,8 @@ useEffect(() => {
                                         ...prev.demographics,
                                         [category]: prev.demographics[category].includes(value)
                                           ? prev.demographics[category].filter(v => v !== value)
-                                          : [...prev.demographics[category], value]
-                                      }
+                                          : [...prev.demographics[category], value],
+                                      },
                                     }));
                                   }}
                                 >
@@ -1220,55 +1412,6 @@ useEffect(() => {
                         ))}
                       </div>
                     </div>
-
-                    {/* Question Types - Unchanged */}
-                    <div className="space-y-1">
-                      <Label>Question Types</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {pipelineParams.questionTypes.map(type => (
-                          <Badge
-                            key={type}
-                            variant={selectedParams.questionTypes.includes(type) ? "default" : "outline"}
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setSelectedParams(prev => ({
-                                ...prev,
-                                questionTypes: prev.questionTypes.includes(type)
-                                  ? prev.questionTypes.filter(t => t !== type)
-                                  : [...prev.questionTypes, type]
-                              }));
-                            }}
-                          >
-                            {type}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Relevance Options - Unchanged */}
-                    <div className="space-y-1">
-                      <Label>Relevance Options</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {pipelineParams.relevanceOptions.map(option => (
-                          <Badge
-                            key={option}
-                            variant={selectedParams.relevanceOptions.includes(option) ? "default" : "outline"}
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setSelectedParams(prev => ({
-                                ...prev,
-                                relevanceOptions: prev.relevanceOptions.includes(option)
-                                  ? prev.relevanceOptions.filter(o => o !== option)
-                                  : [...prev.relevanceOptions, option]
-                              }));
-                            }}
-                          >
-                            {option}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-
                     {/* Add iterations input */}
                     <div className="space-y-1">
                       <Label className="text-sm font-medium">Iterations per Prompt</Label>

@@ -1,11 +1,10 @@
 import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import DBSCAN, KMeans
-from sklearn.metrics.pairwise import cosine_similarity
 import json
 import sys
 from collections import Counter
-
+from sklearn.cluster import DBSCAN, KMeans
+from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
 import nltk
 from nltk.stem import WordNetLemmatizer
 from nltk import word_tokenize
@@ -14,6 +13,7 @@ from nltk import word_tokenize
 # nltk.download('wordnet')
 
 lemmatizer = WordNetLemmatizer()
+model = SentenceTransformer('all-MiniLM-L6-v2')  # Efficient & accurate SBERT model
 
 def normalize_concept(concept: str) -> str:
     """Lemmatizes and normalizes a concept string."""
@@ -21,40 +21,44 @@ def normalize_concept(concept: str) -> str:
     lemmas = [lemmatizer.lemmatize(t) for t in tokens]
     return " ".join(lemmas)
 
-def process_clustering(concept_frequencies, eps=0.15, min_samples=1, min_freq_threshold=3, max_clusters=20):
+def get_best_label_sbert(cluster_concepts, model):
+    """Find the most representative concept based on cosine similarity to the centroid."""
+    if not cluster_concepts:
+        return ""
+
+    cluster_embeddings = model.encode(cluster_concepts, normalize_embeddings=True)
+    centroid = np.mean(cluster_embeddings, axis=0).reshape(1, -1)
+    similarities = cosine_similarity(cluster_embeddings, centroid).flatten()
+    best_index = similarities.argmax()
+    
+    return cluster_concepts[best_index]
+
+def process_clustering(concept_frequencies, eps=0.25, min_samples=2, min_freq_threshold=3, max_clusters=16, min_clusters=4):
     if not concept_frequencies:
         return [], {}
 
-    # Expand the list by frequency: each concept appears 'freq' times.
+    # Normalize and expand concepts by frequency
     concepts = []
     for concept, freq in concept_frequencies:
         normalized = normalize_concept(concept)
         concepts.extend([normalized] * freq)
-    
-    # Vectorize every instance so that repeated occurrences affect density.
-    vectorizer = TfidfVectorizer(stop_words='english')
-    tfidf_matrix = vectorizer.fit_transform(concepts)
-    feature_matrix = tfidf_matrix.toarray()
+
+    # Compute Sentence-BERT embeddings
+    embeddings = model.encode(concepts, normalize_embeddings=True)
 
     try:
-        # First, run DBSCAN on the full repeated list.
+        # Clustering using DBSCAN
         dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
-        dbscan.fit(feature_matrix)
-        labels = dbscan.labels_
+        labels = dbscan.fit_predict(embeddings)
 
-        # Build initial clusters.
         clusters_dict = {}
         for idx, label in enumerate(labels):
             clusters_dict.setdefault(label, []).append(idx)
-        
-        # Compute centroids for each cluster.
-        cluster_centroids = {}
-        for label, indices in clusters_dict.items():
-            vectors = feature_matrix[indices]
-            centroid = np.mean(vectors, axis=0)
-            cluster_centroids[label] = centroid
-        
-        # Merge clusters whose total frequency is less than min_freq_threshold.
+
+        # Compute centroids
+        cluster_centroids = {label: np.mean(embeddings[indices], axis=0) for label, indices in clusters_dict.items()}
+
+        # Merge small clusters
         small_labels = [label for label, indices in clusters_dict.items() if len(indices) < min_freq_threshold]
         for small_label in small_labels:
             if len(clusters_dict) == 1:
@@ -70,57 +74,52 @@ def process_clustering(concept_frequencies, eps=0.15, min_samples=1, min_freq_th
                     best_sim = sim
                     best_label = label
             if best_label is not None:
-                # Merge: append all indices from the small cluster to the target cluster.
                 clusters_dict[best_label].extend(clusters_dict[small_label])
-                # Remove the small cluster.
                 del clusters_dict[small_label]
-                # Recompute centroid for the target cluster.
-                indices = clusters_dict[best_label]
-                vectors = feature_matrix[indices]
-                cluster_centroids[best_label] = np.mean(vectors, axis=0)
-                # Remove the small cluster's centroid.
+                cluster_centroids[best_label] = np.mean(embeddings[clusters_dict[best_label]], axis=0)
                 del cluster_centroids[small_label]
 
-        # Check if we have more clusters than max_clusters.
+        # If too many clusters, reduce with KMeans
         if len(clusters_dict) > max_clusters:
-            # Recluster the feature matrix with KMeans to force exactly max_clusters.
             kmeans = KMeans(n_clusters=max_clusters, random_state=0)
-            kmeans_labels = kmeans.fit_predict(feature_matrix)
+            kmeans_labels = kmeans.fit_predict(embeddings)
             clusters_dict = {}
             for idx, label in enumerate(kmeans_labels):
                 clusters_dict.setdefault(label, []).append(idx)
-            # Optionally, recalc centroids if you need them for further processing.
-            cluster_centroids = {}
-            for label, indices in clusters_dict.items():
-                vectors = feature_matrix[indices]
-                centroid = np.mean(vectors, axis=0)
-                cluster_centroids[label] = centroid
+            cluster_centroids = {label: np.mean(embeddings[indices], axis=0) for label, indices in clusters_dict.items()}
+        
+        if len(clusters_dict) < min_clusters and len(concepts) > min_clusters:
+            kmeans = KMeans(n_clusters=min_clusters, random_state=0)
+            kmeans_labels = kmeans.fit_predict(embeddings)
+            clusters_dict = {}
+            for idx, label in enumerate(kmeans_labels):
+                clusters_dict.setdefault(label, []).append(idx)
+            cluster_centroids = {label: np.mean(embeddings[indices], axis=0) for label, indices in clusters_dict.items()}
 
-        # Build final clusters from clusters_dict.
+        # Convert clusters to structured format
         clusters = []
         for label, indices in clusters_dict.items():
             cluster_list = [concepts[i] for i in indices]
             concept_counts = Counter(cluster_list)
             sorted_items = sorted(concept_counts.items(), key=lambda x: x[1], reverse=True)
-            cluster_data = {
-                'id': label,  # original label from DBSCAN or KMeans
+            
+            best_label = get_best_label_sbert(cluster_list, model)  # Use SBERT similarity-based labeling
+            
+            clusters.append({
+                'id': label,
                 'concepts': [item[0] for item in sorted_items],
                 'frequency': [item[1] for item in sorted_items],
-                'total_frequency': len(cluster_list)
-            }
-            clusters.append(cluster_data)
+                'total_frequency': len(cluster_list),
+                'label': best_label
+            })
 
-        # Sort clusters by total frequency and reassign sequential IDs.
+        # Sort by frequency
         clusters.sort(key=lambda x: x['total_frequency'], reverse=True)
         for i, cluster in enumerate(clusters):
-            cluster['id'] = i
-            cluster['label'] = cluster['concepts'][0] if cluster['concepts'] else ""
-        
-        # Rebuild the mapping from normalized concept to new sequential cluster ID.
-        new_concept_to_cluster = {}
-        for cluster in clusters:
-            for concept in cluster['concepts']:
-                new_concept_to_cluster[concept] = cluster['id']
+            cluster['id'] = i  # Reassign cluster IDs
+
+        # Mapping from concept to cluster ID
+        new_concept_to_cluster = {concept: cluster['id'] for cluster in clusters for concept in cluster['concepts']}
         
         return clusters, new_concept_to_cluster
 
@@ -137,22 +136,16 @@ def process_clustering(concept_frequencies, eps=0.15, min_samples=1, min_freq_th
         return [cluster], {c: 0 for c in concepts}
 
 def cluster_concepts(input_data):
-    # Get the 'all' concepts list.
     all_concepts = input_data.get("all", [])
-    # Get demographic subgroup data.
-    demographic_data = input_data.get("demographics", {})
-    if not demographic_data:
-        demographic_data = {"baseline": all_concepts}
+    demographic_data = input_data.get("demographics", {}) or {"baseline": all_concepts}
 
-    # Process clustering for overall concepts.
+    # Process overall clustering
     all_clusters, concept_to_cluster = process_clustering(all_concepts)
-    
-    # Process demographic-specific clusters using the overall mapping.
+
+    # Process demographic-specific clusters
     demographic_clusters = {}
     for demo, demo_concepts in demographic_data.items():
-        # Initialize frequency count for each overall cluster id.
         cluster_freq = {cluster['id']: 0 for cluster in all_clusters}
-        
         for concept, freq in demo_concepts:
             normalized = normalize_concept(concept)
             cluster_id = concept_to_cluster.get(normalized, None)
@@ -162,20 +155,16 @@ def cluster_concepts(input_data):
         demo_clusters = []
         for cluster in all_clusters:
             cid = cluster['id']
-            demo_cluster = {
+            demo_clusters.append({
                 'id': cid,
                 'concepts': cluster['concepts'],
                 'frequency': cluster['frequency'], 
                 'total_frequency': cluster_freq[cid],
                 'label': cluster['label']
-            }
-            demo_clusters.append(demo_cluster)
+            })
         demographic_clusters[demo] = demo_clusters
 
-    return {
-        "all": all_clusters,
-        "demographics": demographic_clusters
-    }
+    return {"all": all_clusters, "demographics": demographic_clusters}
 
 if __name__ == "__main__":
     try:
