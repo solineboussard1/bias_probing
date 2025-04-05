@@ -40,7 +40,7 @@ function generateDemographicGroups(demographics: SelectedParams['demographics'])
 export async function processBatch(
   prompts: string[], 
   params: SelectedParams, 
-  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>,
+  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface'|'deepseek', string>,
   batchSize: number = params.iterations, 
   onProgress?: ProgressCallback
 ): Promise<BatchResults[]> {
@@ -153,7 +153,7 @@ export async function processBatch(
 
 export async function runAnalysisPipeline(
   params: SelectedParams,
-  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>,
+  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface'|'deepseek', string>,
   onProgress?: ProgressCallback
 ): Promise<AnalysisResult> {
   onProgress?.({

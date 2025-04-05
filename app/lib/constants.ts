@@ -38,6 +38,7 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
         'claude-3-5-sonnet',
         'mistral-7b',
         'llama-3-8b',
+        'deepseek'
     ],
     domainPatterns: {
         healthcare: {

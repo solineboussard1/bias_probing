@@ -1,8 +1,10 @@
 import OpenAI from 'openai';
-import fetch from 'node-fetch';
+import { InferenceClient } from '@huggingface/inference';
+import Anthropic from '@anthropic-ai/sdk';
+import { Mistral } from '@mistralai/mistralai';
 
 interface ModelSettings {
-  provider: 'openai' | 'anthropic' | 'huggingface';
+  provider: 'openai' | 'anthropic' | 'huggingface' | 'deepseek';
   modelName: string;
   endpoint: string;
 }
@@ -30,13 +32,18 @@ const modelConfig: Record<string, ModelSettings> = {
   },
   'mistral-7b': {
     provider: 'huggingface',
-    modelName: 'mistralai/Mistral-7B-Instruct',
-    endpoint: 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct',
+    modelName: 'mistralai/Mistral-7B-Instruct-v0.2',
+    endpoint: 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2',
   },
   'llama-3-8b': {
     provider: 'huggingface',
-    modelName: 'meta-llama/Llama-3-8B',
-    endpoint: 'https://api-inference.huggingface.co/models/meta-llama/Llama-3-8B',
+    modelName: 'meta-llama/Llama-3-8B-Instruct',
+    endpoint: 'https://api-inference.huggingface.co/models/meta-llama/Llama-3-8B-Instruct',
+  },
+  'deepseek-chat': {  
+    provider: 'deepseek',
+    modelName: 'deepseek-chat',
+    endpoint: 'https://api.deepseek.com/v1/chat/completions', 
   },
 };
 
@@ -45,72 +52,109 @@ export type ModelKey = keyof typeof modelConfig;
 export async function retrieveSingleCall(
   prompt: string,
   selectedModel: ModelKey,
-  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>
+  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface' | 'deepseek', string>
 ): Promise<string> {
   const config = modelConfig[selectedModel];
   if (!config) {
     throw new Error(`Model ${selectedModel} is not configured.`);
   }
 
-  // Get the API key for the provider
+  // Retrieve the correct API key based on the provider
   const userApiKey = userApiKeys[config.provider];
   if (!userApiKey) {
     throw new Error(`API key for provider ${config.provider} is missing.`);
   }
 
-  if (config.provider === 'openai') {
-    // Create a new OpenAI instance with the user-supplied API key.
-    const openai = new OpenAI({
-      apiKey: userApiKey,
-    });
+  // OpenAI provider (now also includes DeepSeek as a separate provider)
+  if (config.provider === 'openai' || config.provider === 'deepseek') {
+    const openai = new OpenAI({ apiKey: userApiKey });
     const response = await openai.chat.completions.create({
       model: config.modelName,
       messages: [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: prompt },
+        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: 'user', content: prompt },
       ],
       temperature: 0.7,
       max_tokens: 500,
     });
+
     if (!response.choices[0]?.message?.content) {
-      throw new Error("No response from OpenAI.");
+      throw new Error('No response from the model.');
     }
+
     return response.choices[0].message.content;
-  } else if (config.provider === 'anthropic') {
-    const response = await fetch(config.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${userApiKey}`,
-      },
-      body: JSON.stringify({
-        prompt: prompt,
-        model: config.modelName,
-        max_tokens_to_sample: 500,
-      }),
-    });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Anthropic API error: ${errorData.error || response.statusText}`);
-    }
-    const data = await response.json();
-    return data.completion || "No response from Anthropic.";
-  } else if (config.provider === 'huggingface') {
-    const response = await fetch(config.endpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${userApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ inputs: prompt }),
-    });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Hugging Face API error: ${errorData.error || response.statusText}`);
-    }
-    const data = await response.json();
-    return data[0]?.generated_text || "No response from Hugging Face.";
-  } else {
-    throw new Error(`Unsupported provider: ${config.provider}`);
   }
+
+
+  // Anthropic provider using its SDK.
+  else if (config.provider === 'anthropic') {
+    const anthropic = new Anthropic({ apiKey: userApiKey });
+    const response = await anthropic.messages.create({
+      model: config.modelName,
+      system: 'You are a helpful assistant.',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 500,
+    });
+
+    if (!response.content) {
+      throw new Error('No response from Anthropic.');
+    }
+
+    let responseText: string;
+
+    if (typeof response.content === 'string') {
+      responseText = response.content;
+    } else if (Array.isArray(response.content)) {
+      responseText = response.content
+        .map(block => ('text' in block ? block.text : ''))
+        .join(' ')
+        .trim();
+    } else {
+      throw new Error('Invalid response format from Anthropic.');
+    }
+
+    if (!responseText) {
+      throw new Error('No valid response text from Anthropic.');
+    }
+
+    return responseText;
+  }
+
+  // Hugging Face provider.
+  else if (config.provider === 'huggingface') {
+    // Use the dedicated client for Mistral models.
+    if (selectedModel === 'mistral-7b') {
+      const mistral = new Mistral({
+        apiKey: userApiKey,
+      });
+
+      const response = await mistral.chat.complete({
+        model: config.modelName,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      if (!response?.choices?.[0]?.message?.content) {
+        throw new Error('No response from Mistral client.');
+      }
+
+      return response.choices[0].message.content as string;
+    }
+
+    // Use Hugging Face's InferenceClient for other models.
+    else {
+      const hfClient = new InferenceClient(userApiKey);
+      const result = await hfClient.textGeneration({
+        model: config.modelName,
+        inputs: prompt,
+      });
+
+      // Assuming the result is an array with the generated text in the first element.
+      if (Array.isArray(result) && result[0]?.generated_text) {
+        return result[0].generated_text;
+      }
+      throw new Error('No response from Hugging Face Inference.');
+    }
+  }
+
+  throw new Error(`Unsupported provider: ${config.provider}`);
 }
