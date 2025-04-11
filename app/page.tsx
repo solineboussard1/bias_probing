@@ -168,6 +168,8 @@ export default function Home() {
 
   const handleAnalyze = async () => {
     // Basic validation of required fields
+    console.log('handleAnalyze: Starting analysis');
+
     if (!selectedParams.model || (selectedParams.domain !== 'custom' && selectedParams.primaryIssues.length === 0)) {
       toast.error('Please select a model and at least one primary issue');
       return;
@@ -178,6 +180,9 @@ export default function Home() {
       return acc;
     }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
 
+    console.log('handleAnalyze: User API keys provided for providers:', 
+    apiKeys.map((a) => ({ provider: a.provider, keyExists: !!a.key })));
+  
     // Map models to their providers
     const modelProviderMap: Record<string, 'openai' | 'anthropic' | 'huggingface'> = {
       'gpt-4o': 'openai',
@@ -217,6 +222,8 @@ export default function Home() {
       customPrompts: selectedParams.domain === 'custom' ? (selectedParams.customPrompts || []) : [],
       userApiKeys: userApiKeys,
     };
+    console.log('handleAnalyze: Payload being sent:', payload);
+
   
     setIsAnalyzing(true);
     setProgress(null);
@@ -234,6 +241,7 @@ export default function Home() {
         },
         body: JSON.stringify(payload),
       });
+      console.log('handleAnalyze: API response status:', response.status);
 
       if (!response.ok) throw new Error('Analysis request failed');
 

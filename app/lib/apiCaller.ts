@@ -54,6 +54,7 @@ export async function retrieveSingleCall(
   selectedModel: ModelKey,
   userApiKeys: Record<'openai' | 'anthropic' | 'huggingface' | 'deepseek', string>
 ): Promise<string> {
+  console.log(`retrieveSingleCall: Invoked for model ${selectedModel} with prompt:`, prompt);
   const config = modelConfig[selectedModel];
   if (!config) {
     throw new Error(`Model ${selectedModel} is not configured.`);
@@ -77,6 +78,7 @@ export async function retrieveSingleCall(
       temperature: 0.7,
       max_tokens: 500,
     });
+    console.log('retrieveSingleCall: Received OpenAI response:', response);
 
     if (!response.choices[0]?.message?.content) {
       throw new Error('No response from the model.');
