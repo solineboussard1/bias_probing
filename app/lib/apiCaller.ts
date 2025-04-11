@@ -2,6 +2,14 @@ import OpenAI from 'openai';
 import { InferenceClient } from '@huggingface/inference';
 import Anthropic from '@anthropic-ai/sdk';
 import { Mistral } from '@mistralai/mistralai';
+import https from 'https';
+
+const agent = new https.Agent({
+  keepAlive: true,
+  timeout: 60000, // 60 seconds timeout
+});
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 interface ModelSettings {
   provider: 'openai' | 'anthropic' | 'huggingface' | 'deepseek';
@@ -54,119 +62,115 @@ export async function retrieveSingleCall(
   selectedModel: ModelKey,
   userApiKeys: Record<'openai' | 'anthropic' | 'huggingface' | 'deepseek', string>
 ): Promise<string> {
-  console.log(`retrieveSingleCall: Invoked for model ${selectedModel} with prompt:`, prompt);
+  console.log(` Invoked for model ${selectedModel} with prompt:`, prompt);
+  
   const config = modelConfig[selectedModel];
-  if (!config) {
-    throw new Error(`Model ${selectedModel} is not configured.`);
-  }
+  if (!config) throw new Error(`🚨 Model ${selectedModel} is not configured.`);
 
-  // Retrieve the correct API key based on the provider
   const userApiKey = userApiKeys[config.provider];
-  if (!userApiKey) {
-    throw new Error(`API key for provider ${config.provider} is missing.`);
-  }
+  if (!userApiKey) throw new Error(`🚨 API key for provider ${config.provider} is missing.`);
 
-  // OpenAI & DeepSeek (both use OpenAI-compatible API)
-  if (config.provider === 'openai' || config.provider === 'deepseek') {
-    const openai = new OpenAI({
-      apiKey: userApiKey,
-    });
-    console.log(`retrieveSingleCall: Making API call for model ${selectedModel} with prompt:`, prompt);
+  const maxRetries = 3;
+  let attempts = 0;
 
-    const response = await openai.chat.completions.create({
-      model: config.modelName,
-      messages: [
-        { role: 'system', content: 'You are a helpful assistant.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 500,
-    });
+  while (attempts < maxRetries) {
+    try {
+      // OpenAI & DeepSeek (OpenAI-compatible API)
+      if (config.provider === 'openai' || config.provider === 'deepseek') {
+        const openai = new OpenAI({
+          apiKey: userApiKey,
+          httpAgent: agent,
+          timeout: 60000, 
+        });
 
-    console.log('retrieveSingleCall: OpenAI response:', response);
+        console.log(`⏳ API call for model ${selectedModel}, attempt ${attempts + 1}`);
 
-    if (!response.choices[0]?.message?.content) {
-      throw new Error('No response from the model.');
-    }
+        const response = await openai.chat.completions.create({
+          model: config.modelName,
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant.' },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 500,
+        });
 
-    return response.choices[0].message.content;
-  }
-
-  // Anthropic provider (Claude models)
-  else if (config.provider === 'anthropic') {
-    const anthropic = new Anthropic({
-      apiKey: userApiKey,
-    });
-
-    const response = await anthropic.messages.create({
-      model: config.modelName,
-      system: 'You are a helpful assistant.',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 500,
-    });
-
-    if (!response.content) {
-      throw new Error('No response from Anthropic.');
-    }
-
-    let responseText: string;
-
-    if (typeof response.content === 'string') {
-      responseText = response.content;
-    } else if (Array.isArray(response.content)) {
-      responseText = response.content
-        .map(block => ('text' in block ? block.text : ''))
-        .join(' ')
-        .trim();
-    } else {
-      throw new Error('Invalid response format from Anthropic.');
-    }
-
-    if (!responseText) {
-      throw new Error('No valid response text from Anthropic.');
-    }
-
-    return responseText;
-  }
-
-  // Hugging Face provider (Mistral & Llama models)
-  else if (config.provider === 'huggingface') {
-    if (selectedModel === 'mistral-7b') {
-      const mistral = new Mistral({
-        apiKey: userApiKey,
-      });
-
-      const response = await mistral.chat.complete({
-        model: config.modelName,
-        messages: [{ role: "user", content: prompt }],
-      });
-
-      if (!response?.choices?.[0]?.message?.content) {
-        throw new Error('No response from Mistral client.');
+        if (!response.choices[0]?.message?.content) throw new Error('⚠️ No response from OpenAI.');
+        
+        return response.choices[0].message.content;
       }
 
-      return response.choices[0].message.content as string;
-    } 
+      // Anthropic (Claude models)
+      else if (config.provider === 'anthropic') {
+        const anthropic = new Anthropic({ apiKey: userApiKey });
 
-    // Hugging Face InferenceClient for Llama models
-    else {
-      const hfClient = new InferenceClient(userApiKey);
-      const result = await hfClient.textGeneration({
-        model: config.modelName,
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 500,
-          return_full_text: false,
-        },
-      });
+        const response = await anthropic.messages.create({
+          model: config.modelName,
+          system: 'You are a helpful assistant.',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 500,
+        });
 
-      if (result && typeof result === 'object' && 'generated_text' in result) {
-        return result.generated_text;
+        if (!response.content) throw new Error('⚠️ No response from Anthropic.');
+
+        let responseText: string;
+        if (typeof response.content === 'string') responseText = response.content;
+        else if (Array.isArray(response.content)) responseText = response.content.map(block => ('text' in block ? block.text : '')).join(' ').trim();
+        else throw new Error('⚠️ Invalid response format from Anthropic.');
+
+        return responseText;
       }
 
-      throw new Error('No response from Hugging Face Inference.');
+      // Hugging Face (Mistral & Llama models)
+      else if (config.provider === 'huggingface') {
+        if (selectedModel === 'mistral-7b') {
+          const mistral = new Mistral({ apiKey: userApiKey });
+
+          const response = await mistral.chat.complete({
+            model: config.modelName,
+            messages: [{ role: "user", content: prompt }],
+          });
+
+          if (!response?.choices?.[0]?.message?.content) throw new Error('⚠️ No response from Mistral client.');
+
+          return response.choices[0].message.content as string;
+        } 
+
+        // Hugging Face InferenceClient (for Llama models)
+        else {
+          const hfClient = new InferenceClient(userApiKey);
+          const result = await hfClient.textGeneration({
+            model: config.modelName,
+            inputs: prompt,
+            parameters: { max_new_tokens: 500, return_full_text: false },
+          });
+
+          if (result && typeof result === 'object' && 'generated_text' in result) return result.generated_text;
+
+          throw new Error('❌ No response from Hugging Face Inference.');
+        }
+      }
+
+      throw new Error(`❌Unsupported provider: ${config.provider}`);
+
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        attempts++;
+        console.error(`❌ Attempt ${attempts} failed: ${error.message}`);
+    
+        // Log full error for debugging
+        console.error(`Full error: ${JSON.stringify(error, null, 2)}`);
+      } else {
+        console.error(`❌ Attempt ${attempts} failed: Unknown error`);
+        console.error(`Full error: ${JSON.stringify(error, null, 2)}`);
+      }
+    
+      if (attempts >= maxRetries) throw new Error(` API request failed after ${maxRetries} attempts`);
+    
+      // Wait before retrying (Exponential Backoff)
+      await delay(1000 * attempts);
     }
   }
 
-  throw new Error(`Unsupported provider: ${config.provider}`);
+  throw new Error(`🔥 Exhausted all retries for model ${selectedModel}`);
 }
