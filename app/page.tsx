@@ -234,18 +234,14 @@ export default function Home() {
     setAnalysisResults([]);
 
     try {
-      const API_BASE_URL = process.env.NODE_ENV === 'development'
-        ? 'http://localhost:3000'
-        : 'https://llm-bias-probing.netlify.app';  
-
-      const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-
+      const response = await fetch(`/api/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
       });
+      
       console.log('handleAnalyze: API response status:', response.status);
 
       if (!response.ok) throw new Error('Analysis request failed');
@@ -259,60 +255,66 @@ export default function Home() {
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-
-        try {
-          buffer += decoder.decode(value, { stream: true }); // Use streaming mode
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
-
-          for (const line of lines) {
-            if (line.trim().startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(5));
-
-                if (data.type === 'complete') {
-                  results = [...results, data.result];
-                  setAnalysisResults(prev => [...prev, data.result]);
-                  toast.success('Analysis completed successfully');
-                } else if (data.type === 'error') {
-                  throw new Error(data.error);
-                } else {
-                  setProgress({
-                    currentPrompt: data.prompt,
-                    iteration: data.iteration,
-                    totalPrompts: data.totalPrompts,
-                    completedPrompts: data.completedPrompts,
-                    message: data.message
-                  });
-                }
-              } catch (parseError) {
-                console.error('Failed to parse SSE data:', parseError);
-                console.log('Problematic line:', line);
-                continue;
+        if (done) {
+          console.log('Reader done');
+          break;
+        }
+        const decoded = decoder.decode(value, { stream: true });
+        console.log('Raw chunk received:', decoded);
+        buffer += decoded;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // keep last incomplete line
+        for (const line of lines) {
+          if (line.trim().startsWith('data: ')) {
+            console.log('Processing line:', line);
+            try {
+              const data = JSON.parse(line.slice(5));
+              console.log('Parsed SSE data:', data);
+              if (data.type === 'complete') {
+                results.push(data.result);
+                setAnalysisResults(prev => [...prev, data.result]);
+                toast.success('Analysis completed successfully');
+              } else if (data.type === 'error') {
+                throw new Error(data.error);
+              } else {
+                setProgress({
+                  currentPrompt: data.prompt,
+                  iteration: data.iteration,
+                  totalPrompts: data.totalPrompts,
+                  completedPrompts: data.completedPrompts,
+                  message: data.message
+                });
+                console.log('Progress update:', data);
               }
+            } catch (parseError) {
+              console.error('Failed to parse SSE data chunk:', parseError);
+              console.log('Problematic line:', line);
             }
+          } else {
+            console.log('Skipping non-data line:', line);
           }
-        } catch (decodeError) {
-          console.error('Failed to decode chunk:', decodeError);
-          continue;
         }
       }
+      
 
       // Process any remaining data in buffer
       if (buffer.trim()) {
+        console.log('Final buffer contents:', buffer);
         try {
           const data = JSON.parse(buffer.slice(5));
+          console.log('Final parsed SSE data:', data);
           if (data.type === 'complete') {
-            results = [...results, data.result];
+            results.push(data.result);
             setAnalysisResults(prev => [...prev, data.result]);
           }
         } catch (parseError) {
           console.error('Failed to parse final buffer:', parseError);
         }
       }
+      
 
       // Only proceed with concept extraction if we have results
+      console.log('Final analysis results:', results);
       if (results.length > 0) {
         await extractConcepts(results);
       } else {
@@ -1242,82 +1244,6 @@ export default function Home() {
                           </div>
                         </div>
 
-                        {/* Domain-specific Recommendations */}
-                        <div className="space-y-1">
-                          <Label>
-                            {selectedParams.domain === 'healthcare'
-                              ? 'Treatment Recommendations'
-                              : selectedParams.domain === 'finance'
-                                ? 'Financial Recommendations'
-                                : selectedParams.domain === 'education'
-                                  ? 'Academic Recommendations'
-                                  : 'Recommendations'}
-                          </Label>
-                          <div className="flex flex-wrap gap-1">
-                            {DEFAULT_PIPELINE_PARAMS.domainPatterns[selectedParams.domain].recommendationPatterns.map(
-                              rec => (
-                                <Badge
-                                  key={rec}
-                                  variant={
-                                    selectedParams.recommendations.includes(rec)
-                                      ? 'default'
-                                      : 'outline'
-                                  }
-                                  className="cursor-pointer"
-                                  onClick={() => {
-                                    setSelectedParams(prev => ({
-                                      ...prev,
-                                      recommendations: prev.recommendations.includes(rec)
-                                        ? prev.recommendations.filter(r => r !== rec)
-                                        : [...prev.recommendations, rec],
-                                    }));
-                                  }}
-                                >
-                                  {rec}
-                                </Badge>
-                              )
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Domain-specific Relevant Statements */}
-                        <div className="space-y-1">
-                          <Label>
-                            {selectedParams.domain === 'healthcare'
-                              ? 'Medical History Statements'
-                              : selectedParams.domain === 'finance'
-                                ? 'Financial History Statements'
-                                : selectedParams.domain === 'education'
-                                  ? 'Academic History Statements'
-                                  : 'Relevant Background Statements'}
-                          </Label>
-                          <div className="flex flex-wrap gap-1">
-                            {DEFAULT_PIPELINE_PARAMS.relevantStatements[selectedParams.domain].map(
-                              statement => (
-                                <Badge
-                                  key={statement}
-                                  variant={
-                                    selectedParams.relevantStatements.includes(statement)
-                                      ? 'default'
-                                      : 'outline'
-                                  }
-                                  className="cursor-pointer"
-                                  onClick={() => {
-                                    setSelectedParams(prev => ({
-                                      ...prev,
-                                      relevantStatements: prev.relevantStatements.includes(statement)
-                                        ? prev.relevantStatements.filter(s => s !== statement)
-                                        : [...prev.relevantStatements, statement],
-                                    }));
-                                  }}
-                                >
-                                  {statement}
-                                </Badge>
-                              )
-                            )}
-                          </div>
-                        </div>
-
                         {/* Question Types */}
                         <div className="space-y-1">
                           <Label>Question Types</Label>
@@ -1348,7 +1274,7 @@ export default function Home() {
 
                         {/* Relevance Options */}
                         <div className="space-y-1">
-                          <Label>Relevance Options</Label>
+                          <Label>Relevant Context</Label>
                           <div className="flex flex-wrap gap-2">
                             {pipelineParams.relevanceOptions.map(option => (
                               <Badge
@@ -1375,6 +1301,78 @@ export default function Home() {
                         </div>
 
                       </>
+                    )}
+
+                    {/* ———————————————————————————————— */}
+                    {/* CONDITIONALLY SHOWN SECTIONS */}
+                    {/* ———————————————————————————————— */}
+
+                    {/* 1) Treatment / Financial / Academic Recommendations */}
+                    {selectedParams.questionTypes.some(
+                        qt => qt === 'True/False' || qt === 'Multiple Choice'
+                      ) && (
+                      <div className="space-y-1">
+                        <Label>Recommendation Options</Label>
+
+                        <div className="flex flex-wrap gap-1">
+                          {DEFAULT_PIPELINE_PARAMS.domainPatterns[selectedParams.domain]
+                            .recommendationPatterns.map(rec => (
+                              <Badge
+                                key={rec}
+                                variant={
+                                  selectedParams.recommendations.includes(rec)
+                                    ? 'default'
+                                    : 'outline'
+                                }
+                                className="cursor-pointer"
+                                onClick={() => {
+                                  setSelectedParams(prev => ({
+                                    ...prev,
+                                    recommendations: prev.recommendations.includes(rec)
+                                      ? prev.recommendations.filter(r => r !== rec)
+                                      : [...prev.recommendations, rec],
+                                  }));
+                                }}
+                              >
+                                {rec}
+                              </Badge>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2) Relevant Background / History Statements */}
+                    {selectedParams.relevanceOptions.includes('Relevant') && (
+                      <div className="space-y-1">
+                        <Label>
+                          Relevant Statement Options
+                          </Label>
+                        <div className="flex flex-wrap gap-1">
+                          {DEFAULT_PIPELINE_PARAMS.relevantStatements[selectedParams.domain].map(
+                            statement => (
+                              <Badge
+                                key={statement}
+                                variant={
+                                  selectedParams.relevantStatements.includes(statement)
+                                    ? 'default'
+                                    : 'outline'
+                                }
+                                className="cursor-pointer"
+                                onClick={() => {
+                                  setSelectedParams(prev => ({
+                                    ...prev,
+                                    relevantStatements: prev.relevantStatements.includes(statement)
+                                      ? prev.relevantStatements.filter(s => s !== statement)
+                                      : [...prev.relevantStatements, statement],
+                                  }));
+                                }}
+                              >
+                                {statement}
+                              </Badge>
+                            )
+                          )}
+                        </div>
+                      </div>
                     )}
 
                     {/* Demographics - Always shown */}

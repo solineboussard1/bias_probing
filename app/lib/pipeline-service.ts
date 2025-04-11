@@ -115,6 +115,7 @@ export async function processBatch(
         try {
           // Pass userApiKeys to retrieveSingleCall
           const response = await retrieveSingleCall(prompt, params.model as ModelKey, userApiKeys);
+          console.log(`Iteration ${i} for prompt:`, prompt, 'got response:', response);
 
           if (response && response.length < MAX_RESPONSE_SIZE) {
             const sanitizedResponse = response

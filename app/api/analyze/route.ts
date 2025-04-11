@@ -44,11 +44,13 @@ export async function POST(request: NextRequest): Promise<Response> {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
         'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',  // Fix CORS
+        'Content-Encoding': 'none', // Disable compression to help with streaming
+        'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       },
     });
+    
     
 
     type ProgressUpdate = {
@@ -60,6 +62,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     console.log('API POST: Starting analysis pipeline');
 
     runAnalysisPipeline(processedParams, params.userApiKeys, async (update: ProgressUpdate) => {
+      console.log('Sending SSE update:', update);
       await writer.write(encoder.encode(`data: ${JSON.stringify(update)}\n\n`));
     })
       .then(async (result) => {

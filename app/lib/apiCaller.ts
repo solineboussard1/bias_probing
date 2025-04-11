@@ -71,6 +71,7 @@ export async function retrieveSingleCall(
     const openai = new OpenAI({
       apiKey: userApiKey,
     });
+    console.log(`retrieveSingleCall: Making API call for model ${selectedModel} with prompt:`, prompt);
 
     const response = await openai.chat.completions.create({
       model: config.modelName,
