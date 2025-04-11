@@ -27,7 +27,6 @@ export async function POST(req: Request): Promise<Response> {
       });
       
       // Verify file exists
-      const stats = await fs.stat(csvPath);
     } catch (writeError) {
       console.error('Error writing CSV file:', writeError);
       throw writeError;

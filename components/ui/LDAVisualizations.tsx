@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import Chart from 'chart.js/auto';
-import { DownloadIcon } from "lucide-react";
 import { LDAVisualizationsProps } from '@/app/types/pipeline';
 
 const getColorForAttribute = (attribute: string) => {
