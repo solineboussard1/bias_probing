@@ -60,7 +60,6 @@ export function LDAVisualizations({ ldaResults }: LDAVisualizationsProps) {
       if (ref.current) {
         const existingChart = Chart.getChart(ref.current);
         if (existingChart) {
-          console.log("Destroying existing chart...");
           existingChart.destroy();
         }
       }
@@ -144,21 +143,10 @@ if (datasets.length === 0) {
     }
   }, [ldaResults, overallAverages, selectedCategory]);
 
-  const handleDownloadCSV = () => {
-    console.log("CSV download for LDA visualization is not implemented.");
-  };
+
 
   return (
     <div className="grid grid-cols-1 gap-6">
-      <div className="flex justify-end">
-        <Button
-          onClick={handleDownloadCSV}
-          className="flex items-center gap-2"
-        >
-          <DownloadIcon className="h-4 w-4" />
-          download_lda_results.csv
-        </Button>
-      </div>
 
       <Card>
         <CardContent className="pt-4">

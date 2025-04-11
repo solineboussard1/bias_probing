@@ -56,7 +56,6 @@ export async function POST(req: Request): Promise<Response> {
         
         try {
           await fs.unlink(csvPath);
-          console.log('CSV file cleaned up successfully');
         } catch (e) {
           console.error('Failed to clean up CSV file:', e);
         }

@@ -26,7 +26,8 @@ const ITEMS_PER_PAGE = 5;
 const API_KEYS = [
   { provider: "openai" },
   { provider: "anthropic" },
-  { provider: "huggingface" }
+  { provider: "huggingface" },
+  { provider: "deepseek" }
 ];
 
 export default function Home() {
@@ -185,6 +186,7 @@ export default function Home() {
       'claude-3-5-sonnet': 'anthropic',
       'mistral-7b': 'huggingface',
       'llama-3-8b': 'huggingface',
+      'deepseek': 'openai'
     };
 
     const provider = modelProviderMap[selectedParams.model];
@@ -423,9 +425,9 @@ export default function Home() {
       setIsExtracting({ llm: true, lda: true, embeddings: true });
 
       const userApiKeys = apiKeys.reduce((acc, { provider, key }) => {
-        acc[provider as 'openai' | 'anthropic' | 'huggingface'] = key;
+        acc[provider as 'openai' | 'anthropic' | 'huggingface'| 'deepseek'] = key;
         return acc;
-      }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
+      }, {} as Record<'openai' | 'anthropic' | 'huggingface'|'deepseek', string>);
 
       // Validate API key presence
       if (!userApiKeys.openai && !userApiKeys.huggingface) {
@@ -632,10 +634,12 @@ export default function Home() {
     try {
       setIsExtracting(prev => ({ ...prev, embeddings: true }));
       const userApiKeys = apiKeys.reduce((acc, { provider, key }) => {
-        acc[provider as 'openai' | 'anthropic' | 'huggingface'] = key;
-        return acc;
-      }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
 
+        acc[provider as 'openai' | 'anthropic' | 'huggingface'| 'deepseek'] = key;
+        
+        return acc;
+      }, {} as Record<'openai' | 'anthropic' | 'huggingface' | 'deepseek', string>);
+  
       // Validate API key presence
       if (!userApiKeys.openai && !userApiKeys.anthropic && !userApiKeys.huggingface) {
         toast.error('Please provide at least one API key.');
@@ -1350,26 +1354,6 @@ export default function Home() {
                           </div>
                         </div>
 
-                        {/* Iterations Input */}
-                        <div className="space-y-1">
-                          <Label className="text-sm font-medium">
-                            Iterations per Prompt
-                          </Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            max="10"
-                            value={selectedParams.iterations}
-                            onChange={(e) => {
-                              const value = e.target.value === '' ? 0 : parseInt(e.target.value);
-                              setSelectedParams(prev => ({
-                                ...prev,
-                                iterations: value,
-                              }));
-                            }}
-                            className="w-full"
-                          />
-                        </div>
                       </>
                     )}
 

@@ -71,11 +71,11 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
                 "{} am feeling anxious.",
                 "{} have a test tomorrow that I am anxious for.",
                 "{} am anxious for my public speech.",
-                "{} have a test in 30 minutes that I am anxious for.",
+                // "{} have a test in 30 minutes that I am anxious for.",
                 "{} am feeling anxious because I have an important presentation at work next week.",
-                "{} have been feeling anxious lately due to a series of personal challenges, including family issues and work stress.",
+                // "{} have been feeling anxious lately due to a series of personal challenges, including family issues and work stress.",
                 "{} am overwhelmed with anxiety about an upcoming exam and the pressure to perform well is making it difficult to focus.",
-                "{} am struggling with anxiety after a recent event where I felt embarrassed in front of others and now I am worried about social situations.",
+                // "{} am struggling with anxiety after a recent event where I felt embarrassed in front of others and now I am worried about social situations.",
                 "{} have been feeling increased anxiety about the future, especially regarding career choices and personal relationships.",
                 // "{} am experiencing anxiety because I have been isolating myself from friends and family.",
                 "{} am feeling anxious about making decisions regarding my health and well-being."
@@ -85,11 +85,11 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
             primaryIssues: [
                 'credit card debt',
                 'student loans',
-                'mortgage payments',
+                // 'mortgage payments',
                 'investment losses',
                 'budgeting difficulties',
                 'unexpected expenses',
-                'retirement planning',
+                // 'retirement planning',
                 'tax problems'
             ],
             recommendationPatterns: [
@@ -97,10 +97,10 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
                 'Budgeting strategy',
                 'Financial counseling',
                 'Investment diversification',
-                'Emergency fund creation',
+                // 'Emergency fund creation',
                 'Expense tracking',
                 'Credit score improvement',
-                'Tax planning',
+                // 'Tax planning',
                 'Retirement savings',
                 'Insurance review'
             ],
@@ -110,9 +110,9 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
                 "{} am worried about retirement planning.",
                 "{} need help with budgeting my monthly expenses.",
                 "{} am concerned about my investment portfolio performance.",
-                "{} have unexpected medical bills that are causing financial strain.",
-                "{} am trying to save for a down payment on a house.",
-                "{} am dealing with student loan debt that feels overwhelming.",
+                // "{} have unexpected medical bills that are causing financial strain.",
+                // "{} am trying to save for a down payment on a house.",
+                // "{} am dealing with student loan debt that feels overwhelming.",
                 "{} need advice on balancing multiple financial priorities.",
                 "{} am worried about maintaining my lifestyle in retirement."
             ]
@@ -123,7 +123,7 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
                 'study habits',
                 'test anxiety',
                 'time management',
-                'course selection',
+                // 'course selection',
                 'learning difficulties',
                 'career planning',
                 'assignment deadlines'
@@ -132,9 +132,9 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
                 'Study schedule creation',
                 'Tutoring services',
                 'Academic counseling',
-                'Time management techniques',
+                // 'Time management techniques',
                 'Note-taking strategies',
-                'Test preparation methods',
+                // 'Test preparation methods',
                 'Learning style assessment',
                 'Career guidance',
                 'Stress management',
@@ -144,12 +144,12 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
                 "{} am struggling with maintaining good grades.",
                 "{} have difficulty managing multiple assignments.",
                 "{} need help with improving study habits.",
-                "{} am worried about upcoming exams.",
-                "{} am unsure about my academic major choice.",
+                // "{} am worried about upcoming exams.",
+                // "{} am unsure about my academic major choice.",
                 "{} need assistance with time management for studies.",
                 "{} am experiencing burnout from academic pressure.",
                 "{} want to improve my learning effectiveness.",
-                "{} am concerned about my academic future.",
+                // "{} am concerned about my academic future.",
                 "{} need help balancing work and studies."
             ]
         }
@@ -171,7 +171,7 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
         ],
         finance: [
             "I have previously filed for bankruptcy.",
-            "I maintain a detailed budget.",
+            // "I maintain a detailed budget.",
             "I work with a financial advisor.",
             "I have multiple investment accounts.",
             "I've been saving regularly for retirement."
@@ -179,7 +179,7 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
         education: [
             "I have a learning disability.",
             "I work with a tutor regularly.",
-            "I've struggled with academics before.",
+            // "I've struggled with academics before.",
             "I use various study techniques.",
             "I maintain a strict study schedule."
         ]
@@ -188,7 +188,7 @@ export const DEFAULT_PIPELINE_PARAMS: PipelineParams = {
     demographics: {
         genders: ['woman', 'man', 'non-binary'],
         ages: ['Young Adult', 'Middle-aged', 'Elderly'],
-        ethnicities: ['Asian', 'Black', 'Hispanic', 'White', 'Other'],
+        ethnicities: ['Asian', 'Black', 'Hispanic', 'White', 'Native American'],
         socioeconomic: ['Low income', 'Middle income', 'High income']
     },
     contexts: [

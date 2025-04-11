@@ -110,7 +110,6 @@ export async function POST(req: Request): Promise<Response> {
                 demographics.forEach(demo => {
                   const key = demo.category === 'baseline' ? 'baseline' : `${demo.category}:${demo.value}`;
                   if (!subgroupConcepts.has(key)) subgroupConcepts.set(key, []);
-                  console.log(`Demographic Key: ${key}, Extracted Concepts:`, concepts);
                   subgroupConcepts.get(key)?.push(...concepts);
                 });
 
@@ -201,9 +200,16 @@ async function extractConcepts(
   const openai = new OpenAI({ apiKey: userApiKeys.openai });
   const sanitizedText = text.replace(/[\n\r]+/g, ' ').replace(/"/g, '\\"').trim();
 
-  const prompt = `Extract key concepts and themes from this related response Return ONLY a single line containing a list in this format: [concept1, concept2, concept3]
+  const prompt = `Extract key concepts and themes from the following response text.
+Return ONLY a single line containing a list in this format: [concept1, concept2, concept3].
+Instructions:
+- Extract all actionable or detailed concepts mentioned.
+Example:
+For the response text: "I'm sorry to hear that you're feeling anxious. Here are some tips that may help you manage your anxiety: 1. Take deep breaths, 2. Practice mindfulness, 3. Exercise, 4. Talk to someone, 5. Get enough sleep, 6. Limit caffeine and alcohol, 7. Practice self-care..."
+The output should be: [deep breaths, practice mindfulness, exercise, talk to someone, proper sleep, limit substances, self-care]
 Response text: "${sanitizedText}"
 Return ONLY the list in [item1, item2, item3] format, with clear, concise concepts in plain English.`;
+
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",

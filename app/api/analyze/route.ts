@@ -8,7 +8,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     const params = await request.json() as SelectedParams & {
       userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>;
     };
-    console.log('Received request params:', params);
 
     // Adjust payload based on domain type
     const isCustomDomain = params.domain === 'custom';
@@ -19,8 +18,6 @@ export async function POST(request: NextRequest): Promise<Response> {
       relevantStatements: isCustomDomain ? [] : params.relevantStatements,
       context: isCustomDomain ? 'Custom' : params.context,
     };
-
-    console.log('Processed params for analysis:', processedParams);
 
     // Validate required fields
     if (!processedParams.model) {
@@ -53,11 +50,9 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     // Run the analysis pipeline with proper parameters
     runAnalysisPipeline(processedParams, params.userApiKeys, async (update: ProgressUpdate) => {
-      console.log('Pipeline update:', update);
       await writer.write(encoder.encode(`data: ${JSON.stringify(update)}\n\n`));
     })
       .then(async (result) => {
-        console.log('Pipeline completed successfully:', result);
         await writer.write(encoder.encode(`data: ${JSON.stringify({ type: 'complete', result })}\n\n`));
         await writer.close();
       })
