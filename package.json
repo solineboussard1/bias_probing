@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@huggingface/inference": "^3.7.1",
     "@mistralai/mistralai": "^1.5.2",
+    "@netlify/plugin-nextjs": "^5.10.5",
     "@nivo/scatterplot": "^0.88.0",
     "@radix-ui/react-avatar": "^1.1.1",
     "@radix-ui/react-dialog": "^1.1.2",
