@@ -42,10 +42,14 @@ export async function POST(request: NextRequest): Promise<Response> {
     const response = new NextResponse(stream.readable, {
       headers: {
         'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-transform',
         'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',  // Fix CORS
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       },
     });
+    
 
     type ProgressUpdate = {
       type: string;

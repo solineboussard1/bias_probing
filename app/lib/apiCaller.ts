@@ -66,9 +66,12 @@ export async function retrieveSingleCall(
     throw new Error(`API key for provider ${config.provider} is missing.`);
   }
 
-  // OpenAI provider (now also includes DeepSeek as a separate provider)
+  // OpenAI & DeepSeek (both use OpenAI-compatible API)
   if (config.provider === 'openai' || config.provider === 'deepseek') {
-    const openai = new OpenAI({ apiKey: userApiKey });
+    const openai = new OpenAI({
+      apiKey: userApiKey,
+    });
+
     const response = await openai.chat.completions.create({
       model: config.modelName,
       messages: [
@@ -78,7 +81,8 @@ export async function retrieveSingleCall(
       temperature: 0.7,
       max_tokens: 500,
     });
-    console.log('retrieveSingleCall: Received OpenAI response:', response);
+
+    console.log('retrieveSingleCall: OpenAI response:', response);
 
     if (!response.choices[0]?.message?.content) {
       throw new Error('No response from the model.');
@@ -87,10 +91,12 @@ export async function retrieveSingleCall(
     return response.choices[0].message.content;
   }
 
-
-  // Anthropic provider using its SDK.
+  // Anthropic provider (Claude models)
   else if (config.provider === 'anthropic') {
-    const anthropic = new Anthropic({ apiKey: userApiKey });
+    const anthropic = new Anthropic({
+      apiKey: userApiKey,
+    });
+
     const response = await anthropic.messages.create({
       model: config.modelName,
       system: 'You are a helpful assistant.',
@@ -122,9 +128,8 @@ export async function retrieveSingleCall(
     return responseText;
   }
 
-  // Hugging Face provider.
+  // Hugging Face provider (Mistral & Llama models)
   else if (config.provider === 'huggingface') {
-    // Use the dedicated client for Mistral models.
     if (selectedModel === 'mistral-7b') {
       const mistral = new Mistral({
         apiKey: userApiKey,
@@ -140,20 +145,24 @@ export async function retrieveSingleCall(
       }
 
       return response.choices[0].message.content as string;
-    }
+    } 
 
-    // Use Hugging Face's InferenceClient for other models.
+    // Hugging Face InferenceClient for Llama models
     else {
       const hfClient = new InferenceClient(userApiKey);
       const result = await hfClient.textGeneration({
         model: config.modelName,
         inputs: prompt,
+        parameters: {
+          max_new_tokens: 500,
+          return_full_text: false,
+        },
       });
 
-      // Assuming the result is an array with the generated text in the first element.
-      if (Array.isArray(result) && result[0]?.generated_text) {
-        return result[0].generated_text;
+      if (result && typeof result === 'object' && 'generated_text' in result) {
+        return result.generated_text;
       }
+
       throw new Error('No response from Hugging Face Inference.');
     }
   }

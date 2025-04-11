@@ -176,22 +176,22 @@ export default function Home() {
     }
 
     const userApiKeys = apiKeys.reduce((acc, { provider, key }) => {
-      acc[provider as 'openai' | 'anthropic' | 'huggingface'] = key;
+      acc[provider as 'openai' | 'anthropic' | 'huggingface'| 'deepseek'] = key;
       return acc;
-    }, {} as Record<'openai' | 'anthropic' | 'huggingface', string>);
+    }, {} as Record<'openai' | 'anthropic' | 'huggingface'| 'deepseek', string>);
 
     console.log('handleAnalyze: User API keys provided for providers:', 
     apiKeys.map((a) => ({ provider: a.provider, keyExists: !!a.key })));
   
     // Map models to their providers
-    const modelProviderMap: Record<string, 'openai' | 'anthropic' | 'huggingface'> = {
+    const modelProviderMap: Record<string, 'openai' | 'anthropic' | 'huggingface' | 'deepseek'> = {
       'gpt-4o': 'openai',
       'gpt-4o-mini': 'openai',
       'gpt-o1-mini': 'openai',
       'claude-3-5-sonnet': 'anthropic',
       'mistral-7b': 'huggingface',
       'llama-3-8b': 'huggingface',
-      'deepseek': 'openai'
+      'deepseek-chat': 'deepseek'  
     };
 
     const provider = modelProviderMap[selectedParams.model];
@@ -234,7 +234,12 @@ export default function Home() {
     setAnalysisResults([]);
 
     try {
-      const response = await fetch('/api/analyze', {
+      const API_BASE_URL = process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000'
+        : 'https://llm-bias-probing.netlify.app';  
+
+      const response = await fetch(`${API_BASE_URL}/api/analyze`, {
+
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -653,8 +658,11 @@ export default function Home() {
         toast.error('Please provide at least one API key.');
         return;
       }
+      const API_BASE_URL = process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000'
+        : 'https://llm-bias-probing.netlify.app';  
 
-      const response = await fetch('/api/embeddings-extract-concepts', {
+      const response = await fetch(`${API_BASE_URL}/api/embeddings-extract-concepts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ results, userApiKeys })
@@ -751,12 +759,16 @@ export default function Home() {
         conceptData.clusters?.all || []
       );
 
-      const response = await fetch('/api/calculate-agreement', {
+      const API_BASE_URL = process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000'
+        : 'https://llm-bias-probing.netlify.app';  
+
+      const response = await fetch(`${API_BASE_URL}/api/calculate-agreement`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mergedCsv: mergedData })
       });
-
+      
       if (!response.ok) {
         const errorMessage = await response.text();
         console.error('Error response:', errorMessage);
