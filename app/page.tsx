@@ -250,7 +250,7 @@ export default function Home() {
       if (!reader) throw new Error('Failed to get response reader');
 
       const decoder = new TextDecoder();
-      let results: AnalysisResult[] = [];
+      const results: AnalysisResult[] = [];
       let buffer = ''; // Add buffer for incomplete chunks
 
       while (true) {
