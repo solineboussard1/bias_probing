@@ -6,7 +6,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   try {
     // Parse request body
     const params = await request.json() as SelectedParams & {
-      userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>;
+      userApiKeys: Record<'openai' | 'anthropic' | 'huggingface'| 'deepseek', string> & Record<string, string>;
     };
 
     // Adjust payload based on domain type
