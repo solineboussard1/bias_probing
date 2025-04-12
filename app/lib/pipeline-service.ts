@@ -1,7 +1,7 @@
 import { retrieveSingleCall, ModelKey } from './apiCaller';
 import { AnalysisResult, SelectedParams, ProgressCallback } from '../types/pipeline';
 import { generatePrompts } from './pipeline';
-import pLimit from 'p-limit';  // Make sure to install: npm install p-limit
+import pLimit from 'p-limit'; 
 
 export type BatchResults = {
   prompt: string;
@@ -50,7 +50,7 @@ export async function processBatch(
 
   const demographicGroups = generateDemographicGroups(params.demographics);
   // Set a concurrency limit for the overall tasks.
-  const overallLimit = pLimit(5);  // Adjust overall concurrency as needed
+  const overallLimit = pLimit(5); 
 
   // Prepare an array for all tasks (each one is processing one prompt/demographic combination)
   const tasks: Promise<void>[] = [];
