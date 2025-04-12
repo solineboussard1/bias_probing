@@ -4,7 +4,7 @@ nixPkgs = [
   "python311Full",
   "python311Packages.numpy",
   "python311Packages.scipy",
-  "python311Packages.sklearn",
+  "python311Packages.scikit-learn",
   "python311Packages.sentence-transformers",
   "python311Packages.nltk",
   "python311Packages.requests"
