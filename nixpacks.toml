@@ -1,0 +1,20 @@
+[phases.setup]
+nixPkgs = [
+  "nodejs",
+  "python311Full",
+  "python311Packages.numpy",
+  "python311Packages.scipy",
+  "python311Packages.sklearn",
+  "python311Packages.sentence_transformers",
+  "python311Packages.nltk",
+  "python311Packages.requests"
+]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"
