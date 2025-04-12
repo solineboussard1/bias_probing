@@ -662,7 +662,7 @@ export default function Home() {
       }
       const API_BASE_URL = process.env.NODE_ENV === 'development'
         ? 'http://localhost:3000'
-        : 'https://llm-bias-probing.netlify.app';  
+        : 'https://biasprobing.up.railway.app/';  
 
       const response = await fetch(`${API_BASE_URL}/api/embeddings-extract-concepts`, {
         method: 'POST',
@@ -763,7 +763,7 @@ export default function Home() {
 
       const API_BASE_URL = process.env.NODE_ENV === 'development'
         ? 'http://localhost:3000'
-        : 'https://llm-bias-probing.netlify.app';  
+        : 'https://biasprobing.up.railway.app/';  
 
       const response = await fetch(`${API_BASE_URL}/api/calculate-agreement`, {
         method: 'POST',
