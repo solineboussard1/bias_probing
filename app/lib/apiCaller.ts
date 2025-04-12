@@ -5,7 +5,8 @@ import { Mistral } from '@mistralai/mistralai';
 import https from 'https';
 
 const agent = new https.Agent({
-  keepAlive: true,
+  keepAlive: false,
+  maxSockets:10,
   timeout: 60000, // 60 seconds timeout
 });
 
@@ -15,6 +16,13 @@ interface ModelSettings {
   provider: 'openai' | 'anthropic' | 'huggingface' | 'deepseek';
   modelName: string;
   endpoint: string;
+}
+function createAgent() {
+  return new https.Agent({
+    keepAlive: true,
+    maxSockets: 10,
+    timeout: 60000,
+  });
 }
 
 const modelConfig: Record<string, ModelSettings> = {
@@ -79,8 +87,8 @@ export async function retrieveSingleCall(
       if (config.provider === 'openai' || config.provider === 'deepseek') {
         const openai = new OpenAI({
           apiKey: userApiKey,
-          httpAgent: agent,
-          timeout: 60000, 
+          httpAgent: createAgent(),
+          timeout: 60000,
         });
 
         console.log(`⏳ API call for model ${selectedModel}, attempt ${attempts + 1}`);
