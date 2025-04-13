@@ -6,11 +6,11 @@ import path from 'path';
 
 async function runConceptClustering(
   allConceptFrequencies: Map<string, number>,
-  subgroupConcepts: Map<string, string[]> = new Map()
+  subgroupConcepts: Map<string, string[]> = new Map(),
+  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface' | 'deepseek', string>
 ) {
   return new Promise((resolve, reject) => {
     const clusteringScript = path.join(process.cwd(), 'app', 'python', 'concept_clustering.py');
-    // Use "python" as the command (consistent with embeddings_extractor)
     const pythonProcess = spawn('python', [clusteringScript]);
   
     let outputData = '';
@@ -58,7 +58,8 @@ async function runConceptClustering(
           demo,
           Array.from(freqMap.entries())
         ])
-      )
+      ),
+      userApiKeys: { huggingface: userApiKeys.huggingface }
     };
   
     console.log("Sending clustering input data:", inputData);
@@ -74,7 +75,7 @@ export async function POST(req: Request): Promise<Response> {
       try {
         const { results, userApiKeys } = await req.json() as {
           results: AnalysisResult[];
-          userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>;
+          userApiKeys: Record<'openai' | 'anthropic' | 'huggingface'|'deepseek', string>;
         };
 
         if (!results || !Array.isArray(results)) {
@@ -141,7 +142,7 @@ export async function POST(req: Request): Promise<Response> {
           allConceptFrequencies.set(concept, (allConceptFrequencies.get(concept) || 0) + 1);
         });
 
-        const clusters = await runConceptClustering(allConceptFrequencies, subgroupConcepts);
+        const clusters = await runConceptClustering(allConceptFrequencies, subgroupConcepts, userApiKeys);
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: 'clusters', clusters })}\n\n`)
         );
@@ -198,7 +199,7 @@ function getDemographicCategory(demo: string): string | null {
 
 async function extractConcepts(
   text: string,
-  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface', string>
+  userApiKeys: Record<'openai' | 'anthropic' | 'huggingface'|'deepseek', string>
 ) {
   if (!userApiKeys?.openai) throw new Error("Missing OpenAI API key.");
 
