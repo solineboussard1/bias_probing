@@ -465,16 +465,24 @@ export default function Home() {
       llmAbortController = new AbortController();
       ldaAbortController = new AbortController();
 
-      // LLM Extraction
-      const llmPromise = fetch('/api/llm-extract-concepts', {
+      const getApiBase = () => {
+        if (window.location.hostname === 'localhost') {
+          return '/api';
+        } else {
+          return 'https://bias-probing.onrender.com/api';
+        }
+      };
+      
+      // Using the helper for llm extraction
+      const llmPromise = fetch(`${getApiBase()}/llm-extract-concepts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ results, userApiKeys }),
         signal: llmAbortController.signal,
       });
-
-      // LDA Extraction
-      const ldaPromise = fetch('/api/lda-extract-concepts', {
+      
+      // And for LDA extraction
+      const ldaPromise = fetch(`${getApiBase()}/lda-extract-concepts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(results),
