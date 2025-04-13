@@ -9,21 +9,21 @@ async function runConceptClustering(
   subgroupConcepts: Map<string, string[]> = new Map()
 ) {
   return new Promise((resolve, reject) => {
-    const pythonProcess = spawn('python3', [
-      path.join(process.cwd(), 'app/python/concept_clustering.py')
-    ]);
-
+    const clusteringScript = path.join(process.cwd(), 'app', 'python', 'concept_clustering.py');
+    // Use "python" as the command (consistent with embeddings_extractor)
+    const pythonProcess = spawn('python', [clusteringScript]);
+  
     let outputData = '';
     let errorData = '';
-
+  
     pythonProcess.stdout.on('data', (data) => {
       outputData += data.toString();
     });
-
+  
     pythonProcess.stderr.on('data', (data) => {
       errorData += data.toString();
     });
-
+  
     pythonProcess.on('close', (code) => {
       console.log("Python stderr:", errorData);
       if (code !== 0) {
@@ -31,13 +31,17 @@ async function runConceptClustering(
         return reject(new Error(`Clustering failed with code ${code}`));
       }
       try {
-        const clusters = JSON.parse(outputData);
+        // Parse only the last JSON line, in case there is extra logging
+        const outputLines = outputData.trim().split('\n');
+        const lastLine = outputLines[outputLines.length - 1];
+        const clusters = JSON.parse(lastLine);
         resolve(clusters);
       } catch (error) {
         reject(error);
       }
     });
-
+  
+    // Create subgroup frequency mapping
     const subgroupFreqMap = new Map<string, Map<string, number>>();
     for (const [demo, concepts] of subgroupConcepts.entries()) {
       const freqMap = new Map<string, number>();
@@ -46,7 +50,7 @@ async function runConceptClustering(
       });
       subgroupFreqMap.set(demo, freqMap);
     }
-
+  
     const inputData = {
       all: Array.from(allConceptFrequencies.entries()),
       demographics: Object.fromEntries(
@@ -56,7 +60,8 @@ async function runConceptClustering(
         ])
       )
     };
-
+  
+    console.log("Sending clustering input data:", inputData);
     pythonProcess.stdin.write(JSON.stringify(inputData));
     pythonProcess.stdin.end();
   });
