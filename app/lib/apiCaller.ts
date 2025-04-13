@@ -64,15 +64,9 @@ export async function retrieveSingleCall(
   prompt: string,
   selectedModel: ModelKey,
   userApiKeys: Record<'openai' | 'anthropic' | 'huggingface' | 'deepseek', string>
-): Promise<string> {
-  console.log(` Invoked for model ${selectedModel} with prompt:`, prompt);
-  
+): Promise<string> {  
   const config = modelConfig[selectedModel];
-  if (!config) throw new Error(`🚨 Model ${selectedModel} is not configured.`);
-
   const userApiKey = userApiKeys[config.provider];
-  if (!userApiKey) throw new Error(`🚨 API key for provider ${config.provider} is missing.`);
-
   const maxRetries = 3;
   let attempts = 0;
 
@@ -85,8 +79,6 @@ export async function retrieveSingleCall(
           httpAgent: createAgent(),
           timeout: 60000,
         });
-
-        console.log(`⏳ API call for model ${selectedModel}, attempt ${attempts + 1}`);
 
         const response = await openai.chat.completions.create({
           model: config.modelName,
@@ -114,7 +106,7 @@ export async function retrieveSingleCall(
           max_tokens: 500,
         });
 
-        if (!response.content) throw new Error('⚠️ No response from Anthropic.');
+        if (!response.content) throw new Error('No response from Anthropic.');
 
         let responseText: string;
         if (typeof response.content === 'string') responseText = response.content;
@@ -150,21 +142,17 @@ export async function retrieveSingleCall(
 
           if (result && typeof result === 'object' && 'generated_text' in result) return result.generated_text;
 
-          throw new Error('❌ No response from Hugging Face Inference.');
+          throw new Error('No response from Hugging Face Inference.');
         }
       }
 
-      throw new Error(`❌Unsupported provider: ${config.provider}`);
+      throw new Error(`Unsupported provider: ${config.provider}`);
 
     } catch (error: unknown) {
       if (error instanceof Error) {
         attempts++;
-        console.error(`❌ Attempt ${attempts} failed: ${error.message}`);
     
-        // Log full error for debugging
-        console.error(`Full error: ${JSON.stringify(error, null, 2)}`);
       } else {
-        console.error(`❌ Attempt ${attempts} failed: Unknown error`);
         console.error(`Full error: ${JSON.stringify(error, null, 2)}`);
       }
     
@@ -175,5 +163,5 @@ export async function retrieveSingleCall(
     }
   }
 
-  throw new Error(`🔥 Exhausted all retries for model ${selectedModel}`);
+  throw new Error(`Exhausted all retries for model ${selectedModel}`);
 }
