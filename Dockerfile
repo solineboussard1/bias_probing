@@ -34,7 +34,7 @@ COPY . .
 RUN npm install && npm run build
 
 # Expose the port Render will bind to
-EXPOSE 3000
+EXPOSE 10000
 
 # Start the app using the Render-assigned port
-CMD ["npm", "run", "start"]
+CMD npm run start
