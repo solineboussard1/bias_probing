@@ -234,13 +234,21 @@ export default function Home() {
     setAnalysisResults([]);
 
     try {
-      const response = await fetch(`/api/analyze`, {
+      const getApiBase = () => {
+        if (window.location.hostname === 'localhost') {
+          return '/api';
+        } else {
+          return 'https://bias-probing.onrender.com/api';
+        }
+      };
+      
+      const response = await fetch(`${getApiBase()}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
-      });
+      });      
       
       console.log('handleAnalyze: API response status:', response.status);
 
@@ -660,11 +668,19 @@ export default function Home() {
         toast.error('Please provide at least one API key.');
         return;
       }
-      const response = await fetch(`/api/embeddings-extract-concepts`, {
+      const getApiBase = () => {
+        if (window.location.hostname === 'localhost') {
+          return '/api'; 
+        } else {
+          return 'https://bias-probing.onrender.com/api'; 
+        }
+      };
+      
+      const response = await fetch(`${getApiBase()}/embeddings-extract-concepts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ results, userApiKeys })
-     });
+      });
 
       if (!response.ok) {
         throw new Error('Embeddings extraction failed');
@@ -757,11 +773,20 @@ export default function Home() {
         conceptData.clusters?.all || []
       );
 
-      const response = await fetch(`/api/calculate-agreement`, {
+      const getApiBase = () => {
+        if (window.location.hostname === 'localhost') {
+          return '/api';
+        } else {
+          return 'https://bias-probing.onrender.com/api';
+        }
+      };
+      
+      const response = await fetch(`${getApiBase()}/calculate-agreement`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mergedCsv: mergedData })
       });
+      
       
       
       if (!response.ok) {
