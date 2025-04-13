@@ -23,9 +23,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Download NLTK data
 RUN python3 - <<EOF
 import nltk
+# download both the standard punkt and the punkt_tab variant
 nltk.download('punkt', quiet=True)
+nltk.download('punkt_tab', quiet=True)
 nltk.download('wordnet', quiet=True)
 EOF
+
 
 # Copy application code
 COPY . .

@@ -13,10 +13,10 @@ from tqdm import tqdm
 def preprocess_data(csv_path):
     df = pd.read_csv(csv_path)
     
-    nltk.download('punkt')
-    nltk.download('stopwords')
-    nltk.download('punkt_tab')
-    nltk.download('averaged_perceptron_tagger')
+    # nltk.download('punkt')
+    # nltk.download('stopwords')
+    # nltk.download('punkt_tab')
+    # nltk.download('averaged_perceptron_tagger')
     
     stop_words = set(stopwords.words('english'))
     stop_words -= {'he', 'she', 'him', 'her', 'his', 'hers', 'himself', 'herself'}

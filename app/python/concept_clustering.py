@@ -171,7 +171,7 @@ if __name__ == "__main__":
         input_str = sys.stdin.read()
         input_data = json.loads(input_str)
         clusters = cluster_concepts(input_data)
-        print(json.dumps(clusters, indent=2))
+        print(json.dumps(clusters))
     except Exception as e:
         print(f"Error: {str(e)}", file=sys.stderr)
         sys.exit(1)
