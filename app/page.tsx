@@ -660,15 +660,11 @@ export default function Home() {
         toast.error('Please provide at least one API key.');
         return;
       }
-      const API_BASE_URL = process.env.NODE_ENV === 'development'
-        ? 'http://localhost:3000'
-        : 'https://biasprobing.up.railway.app/';  
-
-      const response = await fetch(`${API_BASE_URL}/api/embeddings-extract-concepts`, {
+      const response = await fetch(`/api/embeddings-extract-concepts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ results, userApiKeys })
-      });
+     });
 
       if (!response.ok) {
         throw new Error('Embeddings extraction failed');
@@ -761,15 +757,12 @@ export default function Home() {
         conceptData.clusters?.all || []
       );
 
-      const API_BASE_URL = process.env.NODE_ENV === 'development'
-        ? 'http://localhost:3000'
-        : 'https://biasprobing.up.railway.app/';  
-
-      const response = await fetch(`${API_BASE_URL}/api/calculate-agreement`, {
+      const response = await fetch(`/api/calculate-agreement`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mergedCsv: mergedData })
       });
+      
       
       if (!response.ok) {
         const errorMessage = await response.text();
